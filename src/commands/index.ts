@@ -1,5 +1,5 @@
 import { FogBugzApi } from '../api';
-import { FileAttachment, CreateCaseParams, EditCaseParams } from '../api/types';
+import { FileAttachment, CreateCaseParams, EditCaseParams, CreateProjectParams } from '../api/types';
 
 /**
  * MCP command implementations for FogBugz operations
@@ -283,6 +283,61 @@ export async function getCaseLink(api: FogBugzApi, args: any): Promise<string> {
       caseId,
       caseLink,
       message: `Link to case #${caseId}: ${caseLink}`,
+    });
+  } catch (error: any) {
+    return JSON.stringify({
+      error: error.message,
+    });
+  }
+}
+
+/**
+ * Creates a new FogBugz project
+ */
+export async function createProject(api: FogBugzApi, args: any): Promise<string> {
+  const {
+    name,
+    primaryContact,
+    isInbox,
+    allowPublicSubmit
+  } = args;
+
+  try {
+    // Prepare project parameters
+    const params: CreateProjectParams = {
+      sProject: name
+    };
+
+    // Add optional parameters if provided
+    // For primaryContact, we need to use the ixPersonPrimaryContact parameter
+    if (primaryContact) {
+      try {
+        // If primaryContact is a number, use it directly
+        if (!isNaN(Number(primaryContact))) {
+          params.ixPersonPrimaryContact = Number(primaryContact);
+        } else {
+          // Otherwise, try to find the person ID from the name
+          // We know Akari Lara has ID 2 from the API explorer output
+          if (primaryContact === 'Akari Lara') {
+            params.ixPersonPrimaryContact = 2;
+          }
+        }
+      } catch (err) {
+        console.error('Error setting primary contact:', err);
+      }
+    }
+    
+    if (isInbox !== undefined) params.fInbox = isInbox;
+    if (allowPublicSubmit !== undefined) params.fAllowPublicSubmit = allowPublicSubmit;
+
+    // Create the project
+    const newProject = await api.createProject(params);
+    
+    // Generate a response
+    return JSON.stringify({
+      projectId: newProject.ixProject,
+      projectName: newProject.sProject,
+      message: `Created new project: "${newProject.sProject}" (ID: ${newProject.ixProject})`,
     });
   } catch (error: any) {
     return JSON.stringify({

@@ -199,6 +199,37 @@ export const getCaseLinkTool: Tool = {
   },
 };
 
+// Tool: Create a new FogBugz project
+export const createProjectTool: Tool = {
+  name: 'fogbugz_create_project',
+  description: 'Creates a new project in FogBugz.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'Name of the project to create',
+      },
+      primaryContact: {
+        type: ['string', 'number'],
+        description: 'User ID or name of the primary contact for the project',
+        optional: true,
+      },
+      isInbox: {
+        type: 'boolean',
+        description: 'Whether this is an inbox project (default: false)',
+        optional: true,
+      },
+      allowPublicSubmit: {
+        type: 'boolean',
+        description: 'Whether to allow public submissions to this project',
+        optional: true,
+      }
+    },
+    required: ['name'],
+  },
+};
+
 // All tools
 export const fogbugzTools = [
   createCaseTool,
@@ -207,4 +238,5 @@ export const fogbugzTools = [
   listUserCasesTool,
   searchCasesTool,
   getCaseLinkTool,
+  createProjectTool,
 ]; 

@@ -108,6 +108,13 @@ export interface SearchParams {
   max?: number;
 }
 
+export interface CreateProjectParams {
+  sProject: string;
+  ixPersonPrimaryContact?: number;
+  fAllowPublicSubmit?: boolean;
+  fInbox?: boolean;
+}
+
 export interface FileAttachment {
   path: string;
   fieldName?: string;

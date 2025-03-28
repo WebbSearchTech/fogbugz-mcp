@@ -12,7 +12,8 @@ import {
   CreateCaseParams,
   EditCaseParams,
   SearchParams,
-  FileAttachment
+  FileAttachment,
+  CreateProjectParams
 } from './types';
 
 // Interface for the JSON payload sent to FogBugz API
@@ -225,6 +226,31 @@ export class FogBugzApi {
    */
   getCaseLink(caseId: number): string {
     return `${this.baseUrl}/default.asp?${caseId}`;
+  }
+
+  /**
+   * Create a new project
+   */
+  async createProject(params: CreateProjectParams): Promise<FogBugzProject> {
+    // Create a new params object with converted values
+    const apiParams: Record<string, any> = {};
+    
+    // Copy all string and number parameters
+    apiParams.sProject = params.sProject;
+    if (params.ixPersonPrimaryContact !== undefined) {
+      apiParams.ixPersonPrimaryContact = params.ixPersonPrimaryContact;
+    }
+    
+    // Convert boolean parameters to 0/1 format expected by FogBugz API
+    if (params.fInbox !== undefined) {
+      apiParams.fInbox = params.fInbox ? 1 : 0;
+    }
+    if (params.fAllowPublicSubmit !== undefined) {
+      apiParams.fAllowPublicSubmit = params.fAllowPublicSubmit ? 1 : 0;
+    }
+
+    const response = await this.request<{ project: FogBugzProject }>('newProject', apiParams);
+    return response.project;
   }
 }
 
