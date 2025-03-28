@@ -1,0 +1,39 @@
+{
+  "name": "fogbugz-mcp",
+  "version": "1.0.0",
+  "description": "FogBugz MCP Server for interacting with FogBugz via LLMs",
+  "main": "dist/index.js",
+  "bin": {
+    "fogbugz-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "jest",
+    "explore": "ts-node scripts/api-explorer.ts",
+    "mcp": "node dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "fogbugz",
+    "llm"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "axios": "^1.6.7",
+    "dotenv": "^16.4.5",
+    "form-data": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.25",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2"
+  }
+}
