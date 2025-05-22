@@ -26,10 +26,12 @@ describe('FogBugzApi', () => {
     // Mock response
     mockAxios.post.mockResolvedValueOnce({
       data: {
-        person: {
-          ixPerson: 1,
-          sPerson: 'Test User',
-          sEmail: 'test@example.com'
+        data: {
+          person: {
+            ixPerson: 1,
+            sPerson: 'Test User',
+            sEmail: 'test@example.com'
+          }
         }
       }
     });
@@ -39,7 +41,10 @@ describe('FogBugzApi', () => {
     expect(mockAxios.post).toHaveBeenCalledTimes(1);
     expect(mockAxios.post).toHaveBeenCalledWith(
       'https://test.fogbugz.com/f/api/0/jsonapi',
-      expect.any(URLSearchParams),
+      {
+        cmd: 'viewPerson',
+        token: 'test-api-key'
+      },
       expect.any(Object)
     );
     
@@ -54,11 +59,13 @@ describe('FogBugzApi', () => {
     // Mock response
     mockAxios.post.mockResolvedValueOnce({
       data: {
-        case: {
-          ixBug: 123,
-          sTitle: 'Test Case',
-          sPriority: 'Normal',
-          sStatus: 'Active'
+        data: {
+          case: {
+            ixBug: 123,
+            sTitle: 'Test Case',
+            sPriority: 'Normal',
+            sStatus: 'Active'
+          }
         }
       }
     });
@@ -71,6 +78,16 @@ describe('FogBugzApi', () => {
     const result = await api.createCase(caseParams);
     
     expect(mockAxios.post).toHaveBeenCalledTimes(1);
+    expect(mockAxios.post).toHaveBeenCalledWith(
+      'https://test.fogbugz.com/f/api/0/jsonapi',
+      {
+        cmd: 'new',
+        token: 'test-api-key',
+        ...caseParams
+      },
+      expect.any(Object)
+    );
+    
     expect(result).toEqual({
       ixBug: 123,
       sTitle: 'Test Case',
@@ -90,4 +107,4 @@ describe('FogBugzApi', () => {
     
     await expect(api.getCurrentUser()).rejects.toThrow('FogBugz API Error');
   });
-}); 
+});
