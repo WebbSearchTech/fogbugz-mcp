@@ -13,8 +13,9 @@ import {
   EditCaseParams,
   SearchParams,
   FileAttachment,
-  CreateProjectParams
+  CreateProjectParams,
 } from './types';
+import { resources } from '../resources';
 
 // Interface for the JSON payload sent to FogBugz API
 interface FogBugzJsonPayload {
@@ -88,11 +89,27 @@ export class FogBugzApi {
         // Add the JSON payload as a string field named 'json'
         form.append('json', JSON.stringify(jsonPayload));
         
-        response = await axios.post(this.apiEndpoint, form, {
-          headers: {
-            ...form.getHeaders(),
-          },
-        });
+        console.log(`🔍 Sending request to FogBugz API: ${cmd}`);
+        console.log(`📤 Params:`, params);
+
+        try {
+          response = await axios.post(this.apiEndpoint, form, {
+            headers: {
+              ...form.getHeaders(),
+            },
+          });
+
+          console.log(`✅ Raw Response:`, response.data);
+        } catch (error: any) {
+          console.error(`❌ Error in API request: ${cmd}`);
+          if (error.response) {
+            console.error(`Status: ${error.response.status}`);
+            console.error(`Data:`, error.response.data);
+          } else {
+            console.error(error.message);
+          }
+          throw error;
+        }
       } else {
         // Regular JSON for standard requests
         const jsonPayload: FogBugzJsonPayload = {
@@ -101,11 +118,27 @@ export class FogBugzApi {
           ...params
         };
         
-        response = await axios.post(this.apiEndpoint, jsonPayload, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+        console.log(`🔍 Sending request to FogBugz API: ${cmd}`);
+        console.log(`📤 Params:`, params);
+
+        try {
+          response = await axios.post(this.apiEndpoint, jsonPayload, {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          console.log(`✅ Raw Response:`, response.data);
+        } catch (error: any) {
+          console.error(`❌ Error in API request: ${cmd}`);
+          if (error.response) {
+            console.error(`Status: ${error.response.status}`);
+            console.error(`Data:`, error.response.data);
+          } else {
+            console.error(error.message);
+          }
+          throw error;
+        }
       }
 
       if (response.data.errors && response.data.errors.length > 0) {
@@ -132,6 +165,9 @@ export class FogBugzApi {
    */
   async getCurrentUser(): Promise<FogBugzPerson> {
     const response = await this.request<{ person: FogBugzPerson }>('viewPerson');
+    if (!response || !response.person) {
+      throw new Error('Invalid response from API: ' + JSON.stringify(response));
+    }
     return response.person;
   }
 
@@ -183,6 +219,9 @@ export class FogBugzApi {
     attachments: FileAttachment[] = []
   ): Promise<FogBugzCase> {
     const response = await this.request<{ case: FogBugzCase }>('new', params, attachments);
+    if (!response || !response.case) {
+      throw new Error('Invalid response from API: ' + JSON.stringify(response));
+    }
     return response.case;
   }
 
@@ -254,4 +293,4 @@ export class FogBugzApi {
   }
 }
 
-export * from './types'; 
+export * from './types';

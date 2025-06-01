@@ -9,6 +9,7 @@
 
 const axios = require('axios');
 require('dotenv').config();
+const { resources } = require('../src/resources');
 
 // Configuration from environment variables
 const API_KEY = process.env.FOGBUGZ_API_KEY;
@@ -138,6 +139,22 @@ async function demoViews() {
   console.log('\nNote: The JSON API provides additional view commands for other entity types.');
 }
 
+// Demonstrate Users Resource functionality
+async function demoUsersResource() {
+  console.log('\n==== Users Resource ====');
+
+  // Initialize the users resource
+  console.log('Initializing users resource...');
+  await resources.users.initialize();
+
+  // Fetch users
+  console.log('Fetching users...');
+  const users = await resources.users.fetch();
+
+  // Print the fetched users
+  console.log('Fetched users:', users);
+}
+
 // Main function to run the demos
 async function main() {
   console.log('============================================');
@@ -151,7 +168,7 @@ async function main() {
   
   console.log(`Using FogBugz URL: ${FOGBUGZ_URL}`);
   
-  // Run the demo functions
+  // Run the chosen demo functions
   // Comment out any demo you don't want to run
   // await demoApiVersionAndLocation();
   // await demoLoggingOn();
@@ -173,7 +190,8 @@ async function main() {
   // await demoMilestones();
   // await demoWikis();
   // await demoDiscussionGroups();
-  await demoBugzScout();
+  // await demoBugzScout();
+  await demoUsersResource();
   
   console.log('\n✨ Completed API Explorer demonstration');
 }

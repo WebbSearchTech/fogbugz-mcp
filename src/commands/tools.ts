@@ -2,7 +2,10 @@
  * MCP Tool definitions for FogBugz operations
  */
 
-// Define the Tool interface since we're having trouble importing it
+// Import `resources` to resolve its usage
+import { resources } from '../resources';
+
+// Update the `Tool` interface to allow specific input types for `execute`
 interface Tool {
   name: string;
   description: string;
@@ -11,6 +14,7 @@ interface Tool {
     properties: Record<string, any>;
     required: string[];
   };
+  execute?: (input: any) => Promise<void>;
 }
 
 // Tool: Create a new FogBugz case
@@ -62,6 +66,16 @@ export const createCaseTool: Tool = {
     },
     required: ['title'],
   },
+};
+
+// Fix the `createCaseTool` definition
+createCaseTool.execute = async (input: { title: string; project: string }) => {
+  const projects = await resources.projects.fetch();
+  const project = projects.find((p: { name: string }) => p.name === input.project);
+  if (!project) {
+    throw new Error(`Project "${input.project}" not found.`);
+  }
+  // Proceed with creating the case...
 };
 
 // Tool: Update an existing FogBugz case
@@ -239,4 +253,4 @@ export const fogbugzTools = [
   searchCasesTool,
   getCaseLinkTool,
   createProjectTool,
-]; 
+];

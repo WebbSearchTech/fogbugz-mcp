@@ -11,8 +11,9 @@
     "rootDir": "src",
     "declaration": true,
     "resolveJsonModule": true,
-    "typeRoots": ["./node_modules/@types", "./src/typings"]
+    "typeRoots": ["./node_modules/@types", "./src/typings"],
+    "isolatedModules": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests"]
-} 
+  "include": ["src/**/*", "src/typings/mcp.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}

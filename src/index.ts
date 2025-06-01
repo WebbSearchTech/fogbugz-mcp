@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { FogBugzApi } from './api';
 import { fogbugzTools } from './commands/tools';
 import * as handlers from './commands';
+import { resources } from './resources';
 
 // Load environment variables
 dotenv.config();
@@ -204,31 +205,36 @@ async function startMcpServer(api: FogBugzApi) {
 async function main() {
   // Parse command line arguments
   const args = process.argv.slice(2);
-  
+
   // Get API configuration from environment or command line
   const fogbugzUrl = args[0] || process.env.FOGBUGZ_URL || '';
   const fogbugzApiKey = args[1] || process.env.FOGBUGZ_API_KEY || '';
-  
+
   if (!fogbugzUrl || !fogbugzApiKey) {
     log.error('Error: FogBugz URL and API key are required');
     log.error('Usage: fogbugz-mcp <fogbugz-url> <api-key>');
     log.error('       or set FOGBUGZ_URL and FOGBUGZ_API_KEY environment variables');
     process.exit(1);
   }
-  
+
   log.info(`Starting FogBugz MCP server for ${fogbugzUrl}`);
-  
+
   // Initialize the FogBugz API client
   const api = new FogBugzApi({
     baseUrl: fogbugzUrl,
     apiKey: fogbugzApiKey
   });
-  
+
   try {
     // Test connection by getting current user
     const user = await api.getCurrentUser();
     log.info(`Connected to FogBugz as ${user.sPerson || user.sFullName} (${user.sEmail})`);
-    
+
+    // Initialize all resources
+    await resources.users.initialize?.();
+    await resources.projects.initialize?.();
+    log.info('All resources initialized successfully.');
+
     // Start the MCP server
     await startMcpServer(api);
   } catch (error) {
@@ -241,4 +247,4 @@ async function main() {
 main().catch(error => {
   log.error('Unhandled error:', error);
   process.exit(1);
-}); 
+});

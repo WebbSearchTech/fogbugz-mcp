@@ -24,6 +24,7 @@ POST /f/api/0/jsonapi
 | `token` | string | API authentication token |
 | `ixFixFor` | integer | ID of the milestone that depends on another |
 | `ixFixForDependsOn` | integer | ID of the milestone that must be completed first |
+| `ixProject` | integer | (Optional) ID of the project the milestones belong to |
 
 #### Example Request
 
@@ -32,7 +33,8 @@ POST /f/api/0/jsonapi
   "cmd": "addFixForDependency",
   "token": "your_api_token",
   "ixFixFor": 10,
-  "ixFixForDependsOn": 7
+  "ixFixForDependsOn": 7,
+  "ixProject": 1
 }
 ```
 
@@ -62,6 +64,7 @@ POST /f/api/0/jsonapi
 | `token` | string | API authentication token |
 | `ixFixFor` | integer | ID of the milestone that depends on another |
 | `ixFixForDependsOn` | integer | ID of the milestone that was required to be completed first |
+| `ixProject` | integer | (Optional) ID of the project the milestones belong to |
 
 #### Example Request
 
@@ -70,7 +73,8 @@ POST /f/api/0/jsonapi
   "cmd": "deleteFixForDependency",
   "token": "your_api_token",
   "ixFixFor": 10,
-  "ixFixForDependsOn": 7
+  "ixFixForDependsOn": 7,
+  "ixProject": 1
 }
 ```
 

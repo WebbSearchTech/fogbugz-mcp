@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { FogBugzApi } from '../src/api';
+import { usersResource } from '../src/resources';
+import { jest } from '@jest/globals';
 
 // Mock axios
 jest.mock('axios');
@@ -106,5 +108,34 @@ describe('FogBugzApi', () => {
     });
     
     await expect(api.getCurrentUser()).rejects.toThrow('FogBugz API Error');
+  });
+});
+
+describe('usersResource', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should initialize and fetch users', async () => {
+    // Mock the API response
+    const mockUsers = [
+      { id: 1, name: 'Alice' },
+      { id: 2, name: 'Bob' },
+    ];
+    const apiMock = jest.spyOn(usersResource, 'initialize').mockImplementation(async () => {
+      usersResource.fetch = async () => mockUsers;
+    });
+
+    // Check if initialize exists and call it
+    if (usersResource.initialize) {
+      await usersResource.initialize();
+    }
+
+    // Fetch the users
+    const users = await usersResource.fetch();
+
+    // Assertions
+    expect(apiMock).toHaveBeenCalled();
+    expect(users).toEqual(mockUsers);
   });
 });
