@@ -6,6 +6,12 @@
   "bin": {
     "fogbugz-mcp": "dist/index.js"
   },
+  "files": [
+    "dist/",
+    "src/",
+    "package.json",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
