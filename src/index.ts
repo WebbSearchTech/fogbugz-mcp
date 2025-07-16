@@ -13,6 +13,13 @@ const log = {
   info: (...args: any[]) => console.error('[INFO]', ...args),
   error: (...args: any[]) => console.error('[ERROR]', ...args),
   debug: (...args: any[]) => console.error('[DEBUG]', ...args),
+  json: (message: any) => {
+    if (typeof message === 'object') {
+      console.log(JSON.stringify(message));
+    } else {
+      console.error('[WARNING] Non-JSON message suppressed:', message);
+    }
+  }
 };
 
 // Simple implementation of an MCP server that reads from stdin and writes to stdout
@@ -70,7 +77,7 @@ async function startMcpServer(api: FogBugzApi) {
             }
           }
         };
-        console.log(JSON.stringify(response));
+        log.json(response);
       } else if (method === 'shutdown') {
         // Shutdown request - client is requesting to end the session
         log.info('Client requested shutdown');
@@ -79,7 +86,7 @@ async function startMcpServer(api: FogBugzApi) {
           id,
           result: null
         };
-        console.log(JSON.stringify(response));
+        log.json(response);
       } else if (method === 'notifications/initialized') {
         // Client has completed initialization
         log.info('Client sent initialized notification');
@@ -93,7 +100,7 @@ async function startMcpServer(api: FogBugzApi) {
             pong: params.ping || "pong"
           }
         };
-        console.log(JSON.stringify(response));
+        log.json(response);
       } else if (method === 'mcp.listTools' || method === 'tools/list') {
         // Return the list of available tools
         const response = {
@@ -103,7 +110,7 @@ async function startMcpServer(api: FogBugzApi) {
             tools: fogbugzTools
           }
         };
-        console.log(JSON.stringify(response));
+        log.json(response);
       } else if (method === 'mcp.callTool' || method === 'tools/call') {
         // Handle tool calls
         const { name, arguments: args } = params;
@@ -146,7 +153,7 @@ async function startMcpServer(api: FogBugzApi) {
             content: [{ type: 'text', text: content }]
           }
         };
-        console.log(JSON.stringify(response));
+        log.json(response);
       } else {
         // Unknown method
         const response = {
@@ -157,7 +164,7 @@ async function startMcpServer(api: FogBugzApi) {
             message: `Method not found: ${method}`
           }
         };
-        console.log(JSON.stringify(response));
+        log.json(response);
       }
     } catch (error: any) {
       // Handle errors
@@ -173,7 +180,7 @@ async function startMcpServer(api: FogBugzApi) {
             message: error.message || 'Internal server error'
           }
         };
-        console.log(JSON.stringify(response));
+        log.json(response);
       } catch (parseError) {
         // If we can't parse the original request, return a generic error
         log.error('Error parsing request:', parseError);
@@ -185,7 +192,7 @@ async function startMcpServer(api: FogBugzApi) {
             message: 'Parse error'
           }
         };
-        console.log(JSON.stringify(response));
+        log.json(response);
       }
     }
   });

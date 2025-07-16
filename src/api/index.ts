@@ -89,8 +89,10 @@ export class FogBugzApi {
         // Add the JSON payload as a string field named 'json'
         form.append('json', JSON.stringify(jsonPayload));
         
-        console.log(`🔍 Sending request to FogBugz API: ${cmd}`);
-        console.log(`📤 Params:`, params);
+        if (process.env.NODE_ENV === 'development') {
+          console.error(`🔍 Sending request to FogBugz API: ${cmd}`);
+          console.error(`📤 Params:`, params);
+        }
 
         try {
           response = await axios.post(this.apiEndpoint, form, {
@@ -99,7 +101,9 @@ export class FogBugzApi {
             },
           });
 
-          console.log(`✅ Raw Response:`, response.data);
+          if (process.env.NODE_ENV === 'development') {
+            console.error(`✅ Raw Response:`, response.data);
+          }
         } catch (error: any) {
           console.error(`❌ Error in API request: ${cmd}`);
           if (error.response) {
@@ -118,8 +122,10 @@ export class FogBugzApi {
           ...params
         };
         
-        console.log(`🔍 Sending request to FogBugz API: ${cmd}`);
-        console.log(`📤 Params:`, params);
+        if (process.env.NODE_ENV === 'development') {
+          console.error(`🔍 Sending request to FogBugz API: ${cmd}`);
+          console.error(`📤 Params:`, params);
+        }
 
         try {
           response = await axios.post(this.apiEndpoint, jsonPayload, {
@@ -128,7 +134,9 @@ export class FogBugzApi {
             },
           });
 
-          console.log(`✅ Raw Response:`, response.data);
+          if (process.env.NODE_ENV === 'development') {
+            console.error(`✅ Raw Response:`, response.data);
+          }
         } catch (error: any) {
           console.error(`❌ Error in API request: ${cmd}`);
           if (error.response) {

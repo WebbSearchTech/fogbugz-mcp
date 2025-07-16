@@ -168,13 +168,17 @@ export const usersResource: Resource<any[]> = {
 export const projectsResource: Resource<any[]> = {
   name: 'projects',
   initialize: async () => {
-    console.log('Initializing projects resource...');
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Initializing projects resource...');
+    }
     const projects = await api.listProjects();
     if (!projects || !Array.isArray(projects) || projects.length === 0) {
       console.warn('Warning: No projects found during initialization.');
     } else {
       cache.projects = projects.filter(project => project.id && project.name);
-      console.log(`Projects initialized: ${cache.projects.length} valid projects found.`);
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`Projects initialized: ${cache.projects.length} valid projects found.`);
+      }
       if (cache.projects.length !== projects.length) {
         console.warn('Warning: Some projects were skipped due to missing id or name.');
       }
@@ -471,7 +475,9 @@ const api = {
 
 // Add a global initialization function to ensure all resources are initialized before use
 const initializeAllResources = async () => {
-    console.log('🔄 Initializing all resources...');
+    if (process.env.NODE_ENV === 'development') {
+      console.error('🔄 Initializing all resources...');
+    }
 
     // Initialize resources sequentially to handle dependencies
     await exports.usersResource.initialize?.();
@@ -481,7 +487,7 @@ const initializeAllResources = async () => {
     await exports.areasResource.initialize?.();
     await exports.prioritiesResource.initialize?.();
 
-    console.log('✅ All resources initialized.');
+    console.error('✅ All resources initialized.');
 };
 
 // Export the initialization function
