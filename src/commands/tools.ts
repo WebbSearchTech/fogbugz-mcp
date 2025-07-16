@@ -253,4 +253,18 @@ export const fogbugzTools = [
   searchCasesTool,
   getCaseLinkTool,
   createProjectTool,
+  {
+    name: 'fogbugz_get_case_details',
+    description: 'Gets the full content of a FogBugz case, including title and all events.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        caseId: {
+          type: 'number',
+          description: 'The ID of the case to get details for',
+        },
+      },
+      required: ['caseId'],
+    },
+  },
 ];

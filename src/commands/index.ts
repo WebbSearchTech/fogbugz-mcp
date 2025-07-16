@@ -1,3 +1,43 @@
+/**
+ * Gets full details of a FogBugz case, including title and all events
+ */
+export async function getCaseDetails(api: FogBugzApi, args: any): Promise<string> {
+  const { caseId } = args;
+  try {
+    // Use the search endpoint with cols=["events"]
+    const cases = await api.searchCases({
+      q: caseId.toString(),
+      cols: [
+        'ixBug',
+        'sTitle',
+        'sStatus',
+        'sPriority',
+        'sProject',
+        'sArea',
+        'sFixFor',
+        'events',
+      ],
+      max: 1,
+    });
+    if (!cases || cases.length === 0) {
+      return JSON.stringify({ error: `Case ${caseId} not found.` });
+    }
+    const bugCase = cases[0];
+    return JSON.stringify({
+      caseId: bugCase.ixBug,
+      title: bugCase.sTitle,
+      status: bugCase.sStatus,
+      priority: bugCase.sPriority,
+      project: bugCase.sProject,
+      area: bugCase.sArea,
+      milestone: bugCase.sFixFor,
+      events: bugCase.events,
+      message: `Fetched details for case #${bugCase.ixBug}: "${bugCase.sTitle}"`,
+    });
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
 import { FogBugzApi } from '../api';
 import { FileAttachment, CreateCaseParams, EditCaseParams, CreateProjectParams } from '../api/types';
 

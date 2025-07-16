@@ -41,7 +41,7 @@ fogbugz-mcp https://yourcompany.fogbugz.com your-api-key
 
 # Or use environment variables
 export FOGBUGZ_URL=https://yourcompany.fogbugz.com
-export TEST_FOGBUGZ_API_KEY=your-api-key
+export FOGBUGZ_API_KEY=your-api-key
 fogbugz-mcp
 ```
 
@@ -57,7 +57,7 @@ npm install
 
 # Create a .env file with your FogBugz credentials
 echo "FOGBUGZ_URL=https://yourcompany.fogbugz.com" > .env
-echo "TEST_FOGBUGZ_API_KEY=your-api-key" >> .env
+echo "FOGBUGZ_API_KEY=your-api-key" >> .env
 
 # Run API explorer to test FogBugz API
 npm run explore
