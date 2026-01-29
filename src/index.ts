@@ -144,6 +144,9 @@ async function startMcpServer(api: FogBugzApi) {
           case 'fogbugz_get_case_details':
             content = await handlers.getCaseDetails(api, args);
             break;
+          case 'fogbugz_download_case':
+            content = await handlers.downloadCase(api, args);
+            break;
           default:
             throw new Error(`Unknown tool: ${name}`);
         }

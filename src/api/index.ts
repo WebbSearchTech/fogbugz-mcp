@@ -275,6 +275,27 @@ export class FogBugzApi {
     return `${this.baseUrl}/default.asp?${caseId}`;
   }
 
+
+
+  /**
+   * Download a file from a URL to a local path
+   * @param url The full URL to download from (must include authentication token)
+   * @param destinationPath The local filesystem path to save the file
+   */
+  async downloadFile(url: string, destinationPath: string): Promise<void> {
+    const response = await axios.get(url, {
+      responseType: 'stream'
+    });
+
+    const writer = fs.createWriteStream(destinationPath);
+    response.data.pipe(writer);
+
+    return new Promise((resolve, reject) => {
+      writer.on('finish', resolve);
+      writer.on('error', reject);
+    });
+  }
+
   /**
    * Create a new project
    */

@@ -292,3 +292,168 @@ With the FogBugz API client (`src/api/index.ts`), MCP tool definitions (`src/com
 8.  **Code Cleanup and Review:**
     *   Refactor code for clarity, efficiency, and adherence to best practices.
     *   Remove any placeholder or simulated API calls in `resources.ts` and ensure it uses the actual `FogBugzApi` instance.
+
+---
+
+## 8. Backup and Export Features (Completed)
+
+### Implementation Summary
+
+A comprehensive backup and export system has been implemented to allow full-fidelity local archival of FogBugz cases. This system includes:
+
+**Core Components:**
+- `src/backup/manager.ts`: Centralized `BackupManager` class handling all backup logic
+- `src/api/index.ts`: Enhanced with `downloadFile()` and `listCheckins()` methods
+- `src/commands/tools.ts` & `src/commands/index.ts`: MCP tool `fogbugz_download_case` for agent-triggered exports
+- `scripts/backup-full.ts`: Standalone CLI utility for bulk backup operations
+
+**Key Features:**
+1. **Incremental Sync**: Compares `dtLastUpdated` to skip unchanged cases
+2. **State Tracking**: Maintains `backup-state.json` with run history and progress
+3. **Security Defaults**: Auto-generates `.gitignore` to prevent accidental commits
+4. **Timeline Preservation**: Includes case events with timestamps
+5. **Full Fidelity**: Stores raw API responses for maximum restoration capability
+
+**File Structure:**
+```
+backup-directory/
+├── .gitignore
+├── backup-state.json
+└── case-{id}/
+    ├── metadata.json
+    ├── checkins.json
+    └── {eventId}_{filename}
+```
+
+### Future Considerations and Roadmap
+
+Based on discussions during implementation, the following enhancements are planned for future development:
+
+#### 1. Database Conversion (Separate Future Project)
+**Goal:** Convert directory-based backups to a searchable database format
+
+- Create scripts to import backup JSON files into SQLite or PostgreSQL
+- Enable full-text search across all cases and comments
+- Support complex queries spanning multiple fields
+- Provide web UI for browsing archived cases offline
+- Single-file database simplifies transfer and archival
+
+**Trade-offs Considered:**
+- Database: Better for search, single file, requires tools to view
+- Directory: Human-readable, easy to browse, version control friendly
+- **Decision**: Keep directory-based as default; database conversion is opt-in post-processing
+
+#### 2. Migration Adapters (Separate Future Project)
+**Goal:** Enable migration from FogBugz to other issue tracking systems
+
+- Develop transformation scripts for common platforms:
+  - Jira: Map FogBugz fields to Jira issue schema
+  - GitHub Issues: Convert cases to GitHub issue/PR format
+  - Linear: Adapt to Linear's data model
+  - GitLab Issues: Transform for GitLab import
+- Handle attachment migration with appropriate URL updates
+- Preserve user mapping and timestamp data
+- Generate import-ready CSV or JSON files for target platforms
+
+**Note:** Migration is distinct from restoration. The raw backup format prioritizes FogBugz restoration; migration scripts will transform this data for other systems.
+
+#### 3. Compression and Archival Options
+**Goal:** Reduce storage footprint for long-term archival
+
+- Add CLI flag to compress each case folder into `.zip` or `.7z` archives
+- Implement batch compression script for existing backups
+- Support streaming decompression for restore operations
+- Maintain index file mapping case IDs to archive locations
+
+**Benefits:**
+- Solves attachment name collision issues (though already handled via event ID prefixing)
+- Reduces disk space for text-heavy cases
+- Simplifies transfer of individual cases
+- Can be implemented as post-processing: `backup` → `compress` → `archive`
+
+#### 4. Resumption and Differential Backups
+**Current Implementation:** The `--start` flag allows manual resumption
+
+**Future Enhancements:**
+- Auto-detect last successful case ID from `backup-state.json`
+- Implement "smart resume" that continues from interruption point
+- Support case ID ranges: `--range 1000-2000` for parallel processing
+- Track failed cases separately and retry them in subsequent runs
+- Support time-based differential: `--since 2026-01-01` to backup only recently modified cases
+
+#### 5. Privacy and Sanitization Options
+**Current Implementation:** Full fidelity backup with user responsibility for security
+
+**Future Options:**
+- `--exclude-fields email,phone` to omit specific sensitive fields
+- `--redact-pii` mode to automatically detect and mask personal information
+- `--include-projects` / `--exclude-projects` for selective backups
+- `--anonymize` to replace user names with pseudonyms while preserving relationships
+- Export audit log of what was excluded/redacted
+
+**Trade-off:** Reduced fidelity vs. enhanced privacy compliance
+
+#### 6. Restore and Import Capabilities
+**Goal:** Complete the backup/restore lifecycle
+
+- Develop `scripts/restore-case.ts` to re-create cases from backup files
+- Handle attachment re-upload via multipart form data
+- Map old case IDs to new case IDs during restoration
+- Support partial restore (e.g., only comments, only attachments)
+- Validate backup integrity before restoration
+- Generate restoration report with success/failure details
+
+**Challenge:** Restoring to a different FogBugz instance requires:
+- User/project mapping (IDs may differ)
+- Handling of missing dependencies (areas, milestones, etc.)
+- Duplicate detection (avoid re-importing existing cases)
+
+#### 7. Performance Optimizations
+**Current Implementation:** Sequential processing with sync logic
+
+**Future Enhancements:**
+- Parallel downloads with configurable concurrency limit
+- Connection pooling for API requests
+- Attachment pre-checking via HEAD requests to skip re-downloads
+- Delta compression for incremental backups
+- Progress persistence for crash recovery
+
+#### 8. Integration Testing and Validation
+**Current State:** Manual testing with real FogBugz instance
+
+**Future Tests:**
+- Mock FogBugz API server for automated testing
+- Backup verification script (checksum validation, completeness checks)
+- Round-trip testing: backup → restore → compare
+- Performance benchmarks for large-scale backups (10,000+ cases)
+- Attachment download integrity verification (MD5/SHA256 hashes)
+
+### Decision Log
+
+Key architectural decisions made during implementation:
+
+1. **Restoration vs. Migration Priority**: Chose to prioritize restoration capability (raw API format) over migration convenience. Migration can be a separate transformation layer.
+
+2. **Storage Format**: Selected directory-based storage over database for human-readability and ease of browsing. Database conversion is available as opt-in post-processing.
+
+3. **Compression**: Decided against automatic compression. Users can batch-compress folders if needed. This simplifies incremental sync logic.
+
+4. **Git Integration**: Modern source control integrations (GitHub, GitLab) are not accessible via the FogBugz JSON API. Only legacy integrations (SVN, CVS, Perforce with hook scripts) would be available through `listCheckins`, which has been removed as it's not used with modern workflows.
+
+5. **Sync Logic**: Implemented `dtLastUpdated` comparison to enable efficient incremental backups. Clean backups can be achieved by targeting a new directory.
+
+6. **Tool Separation**: Created both an MCP tool (for agent-triggered ad-hoc exports) and a CLI script (for systematic bulk backups beyond timeout limits).
+
+7. **Security Model**: Full fidelity with no automatic redaction. User is responsible for storage security. Auto-generated `.gitignore` prevents accidental repository commits.
+
+---
+
+## 9. Conclusion
+
+The FogBugz MCP server is now feature-complete with robust backup and export capabilities alongside the core issue management tools. The backup system balances immediate needs (data preservation) with future flexibility (migration, compression, database conversion).
+
+Next steps for the project:
+- Expand test coverage for backup edge cases
+- Publish to npm for public use
+- Gather user feedback on backup/restore workflows
+- Begin development of migration adapters based on user demand

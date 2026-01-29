@@ -40,6 +40,7 @@ export async function getCaseDetails(api: FogBugzApi, args: any): Promise<string
 }
 import { FogBugzApi } from '../api';
 import { FileAttachment, CreateCaseParams, EditCaseParams, CreateProjectParams } from '../api/types';
+import { BackupManager } from '../backup/manager';
 
 /**
  * MCP command implementations for FogBugz operations
@@ -378,6 +379,34 @@ export async function createProject(api: FogBugzApi, args: any): Promise<string>
       projectId: newProject.ixProject,
       projectName: newProject.sProject,
       message: `Created new project: "${newProject.sProject}" (ID: ${newProject.ixProject})`,
+    });
+  } catch (error: any) {
+    return JSON.stringify({
+      error: error.message,
+    });
+  }
+}
+
+/**
+ * Downloads a complete FogBugz case with all data and attachments
+ */
+export async function downloadCase(api: FogBugzApi, args: any): Promise<string> {
+  const { caseId, outputDir } = args;
+
+  try {
+    // Initialize backup manager
+    const backupManager = new BackupManager(api, outputDir);
+    await backupManager.initialize();
+
+    // Download the case
+    const result = await backupManager.downloadCase(caseId);
+
+    return JSON.stringify({
+      caseId: result.caseId,
+      status: result.status,
+      message: result.message,
+      attachmentCount: result.attachmentCount,
+      outputPath: `${outputDir}/case-${caseId}`
     });
   } catch (error: any) {
     return JSON.stringify({

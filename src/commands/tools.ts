@@ -244,6 +244,26 @@ export const createProjectTool: Tool = {
   },
 };
 
+// Tool: Download a FogBugz case with all attachments
+export const downloadCaseTool: Tool = {
+  name: 'fogbugz_download_case',
+  description: 'Downloads a complete FogBugz case including metadata, events, and all attachments to a local directory.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      caseId: {
+        type: 'number',
+        description: 'The ID of the case to download',
+      },
+      outputDir: {
+        type: 'string',
+        description: 'The directory where the case data should be saved',
+      },
+    },
+    required: ['caseId', 'outputDir'],
+  },
+};
+
 // All tools
 export const fogbugzTools = [
   createCaseTool,
@@ -253,6 +273,7 @@ export const fogbugzTools = [
   searchCasesTool,
   getCaseLinkTool,
   createProjectTool,
+  downloadCaseTool,
   {
     name: 'fogbugz_get_case_details',
     description: 'Gets the full content of a FogBugz case, including title and all events.',

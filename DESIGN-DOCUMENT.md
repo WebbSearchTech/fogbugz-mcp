@@ -497,6 +497,97 @@ Throughout, we leveraged FogBugz’s robust API (which provides programmatic acc
 
 With proper testing and documentation in place, this new FogBugz MCP server will enable scenarios such as an AI assistant auto-filing bug reports with screenshots, triaging and assigning incoming issues to the correct developer, or answering user queries about the state of the project’s bugs – all through the FogBugz system, mediated by the MCP tool interface. 
 
+## Backup and Export Tools
+
+### 7. `fogbugz_download_case` – Downloading Complete Case Data with Attachments
+
+**Description:** Downloads a complete backup of a FogBugz case including all metadata, event history, and file attachments to a local directory. This tool is designed for data archival, audit trails, and migration preparation.
+
+**Inputs:**
+- `caseId` (number, required): The FogBugz case ID to download.
+- `outputDir` (string, required): The local directory where the case data should be saved.
+
+**Implementation Details:**
+
+This tool uses a centralized `BackupManager` module (`src/backup/manager.ts`) that implements:
+
+1. **Incremental Sync Logic**: Before downloading, the manager checks if a case folder already exists and compares the `dtLastUpdated` field from the local `metadata.json` with the current API value. If unchanged, the download is skipped.
+
+2. **Data Retrieval**:
+   - Fetches case details using `cmd=search` with `cols: ['ixBug', 'sTitle', 'dtLastUpdated', 'events']`
+   - Calls `cmd=listCheckins` to retrieve source control integration data
+   - Downloads all attachments from the `rgAttachments` array in each event
+
+3. **File Structure**: Creates a folder `case-{caseId}/` containing:
+   - `metadata.json`: Raw API response with full case data
+   - Attachment files with sanitized names prefixed by `ixBugEvent` (e.g., `85105_screenshot.png`)
+
+4. **State Tracking**: Maintains a `backup-state.json` in the output directory root with:
+   - `lastRunTimestamp`: ISO 8601 timestamp of most recent backup
+   - `totalCasesProcessed`: Running count of processed cases
+   - `lastCaseIdProcessed`: Highest case ID backed up (for resumption)
+
+5. **Security Defaults**: Automatically creates a `.gitignore` file containing `*` in the backup directory to prevent accidental inclusion in version control.
+
+6. **Attachment URL Construction**: Attachments are downloaded by:
+   - Unescaping HTML entities in the `sURL` field (`&amp;` → `&`)
+   - Replacing or adding the authentication token parameter
+   - Streaming the binary data directly to disk using axios with `responseType: 'stream'`
+
+**FogBugz API Usage:**
+- Primary: `cmd=search&q={caseId}&cols=ixBug,sTitle,dtLastUpdated,events`
+- Secondary: `cmd=listCheckins&ixBug={caseId}`
+- Attachment downloads: Direct HTTP GET to constructed URLs with token authentication
+
+**Output:** Returns a JSON string with:
+```json
+{
+  "caseId": 12345,
+  "status": "downloaded" | "skipped" | "error",
+  "message": "Successfully backed up case 12345",
+  "attachmentCount": 3,
+  "outputPath": "./backups/case-12345"
+}
+```
+
+**Timeline Preservation:** The backup captures user-generated events (comments, status changes) with their respective timestamps in the `dt` field. This ensures that when reviewing the backup, the chronological context is preserved. Note: Modern source control integrations (GitHub, GitLab) are not accessible via the API.
+
+### CLI Backup Utility
+
+For bulk backup operations that exceed MCP tool timeout limits, a standalone CLI script (`scripts/backup-full.ts`) is provided. This script:
+
+- Uses the same `BackupManager` logic as the MCP tool
+- Supports batching with configurable `maxCases` per run
+- Provides progress indicators and summary statistics
+- Allows query filtering and resume points via command-line arguments
+- Can run for extended periods without MCP protocol constraints
+
+**Usage:**
+```bash
+npm run backup -- -o ./archive -m 100 -q "status:active"
+npm run backup -- --start 5000  # Resume from case 5000
+```
+
+This separation allows the MCP tool to handle ad-hoc agent requests ("backup the case we just discussed") while the CLI script handles systematic archival of entire FogBugz instances.
+
+### Future Considerations for Backup/Migration
+
+The backup system is designed with future enhancements in mind:
+
+1. **Database Conversion**: Scripts could convert the directory-based backups into a SQLite database for faster searching and analysis.
+
+2. **Migration Adapters**: The raw JSON format can serve as source data for migration scripts to other platforms (Jira, GitHub Issues, Linear, etc.).
+
+3. **Compression**: Individual case folders could be automatically compressed into `.zip` or `.7z` archives for space efficiency and easier transfer.
+
+4. **Selective Restoration**: Scripts could parse the backup files to re-create cases in a new FogBugz instance or recover accidentally deleted data.
+
+5. **Privacy Filtering**: Future versions could include options to redact PII or exclude specific fields during backup for compliance purposes.
+
+---
+
+## Deployment and Distribution
+
 **Sources:**
 
 - FogBugz API supports both XML and JSON formats with the same commands ([FogBugz API: Listing, Searching and Viewing Cases - FogBugz Support](https://fogbugz.kayako.com/article/55766-fogbugz-api-listing-searching-and-viewing-cases#:~:text=FogBugz%20supports%20both%20XML%20API,JSON%20API%20using%C2%A0the%20same%20parameters)).  
@@ -514,3 +605,5 @@ With proper testing and documentation in place, this new FogBugz MCP server will
 - Constructing a direct case URL can be done via `default.asp?<CaseID>` on the FogBugz site ([Getting the public access URL for a FogBugz case that was emailed in - Stack Overflow](https://stackoverflow.com/questions/35280951/getting-the-public-access-url-for-a-fogbugz-case-that-was-emailed-in#:~:text=Construct%20url%20links%20like%20this,asp%3FinsertCaseNumberHere)).  
 - Model Context Protocol allows exposing tools for LLMs; each tool has a name and schema and can be invoked by the model ([Tools – Model Context Protocol Specification](https://spec.modelcontextprotocol.io/specification/2024-11-05/server/tools/#:~:text=The%20Model%20Context%20Protocol%20,includes%20metadata%20describing%20its%20schema)).  
 - MCP servers (TypeScript) can be distributed via npm and run with `npx` easily ([Example Servers - Model Context Protocol](https://modelcontextprotocol.io/examples#:~:text=TypeScript,npx)).
+- Exporting Case Comments and Attachments via Fogbugz API - ([Fogbugz Support](https://support.fogbugz.com/article/55709-exporting-case-comments-and-attachments-with-fogbugz-api)).
+- 

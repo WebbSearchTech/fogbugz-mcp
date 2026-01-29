@@ -1,5 +1,17 @@
 # Listing and Viewing Cases
 
+## Search Syntax and Limitations
+
+For detailed search syntax, see [API Search Reference](22-api-search-reference.md).
+
+### Important Limitations
+
+- **No native pagination**: Use `max` parameter (up to 100,000) and implement batching client-side
+- **No case ID range filtering**: `ixBug:>=1000` syntax is not supported. Fetch sorted results and filter client-side
+- **Default result limit**: UI shows 200 results by default; API allows up to 100,000
+- **For incremental backups**: Use `dtLastUpdated` timestamp filtering instead of case ID ranges
+- **Sort order**: Use `OrderBy:ixBug` within the query string (not as separate parameter) to ensure consistent ordering
+
 ## XML API
 
 In the XML API, you can list and view cases using the `search` command:

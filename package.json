@@ -1,6 +1,6 @@
 {
   "name": "fogbugz-mcp",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "FogBugz MCP Server for interacting with FogBugz via LLMs",
   "main": "dist/index.js",
   "bin": {
@@ -18,14 +18,15 @@
     "dev": "ts-node src/index.ts",
     "test": "jest",
     "explore": "ts-node scripts/api-explorer.ts",
-    "mcp": "node dist/index.js"
+    "mcp": "node dist/index.js",
+    "backup": "ts-node scripts/backup-full.ts"
   },
   "keywords": [
     "mcp",
     "fogbugz",
     "llm"
   ],
-  "author": "",
+  "author": "Webb Myers",
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
