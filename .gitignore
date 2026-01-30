@@ -33,3 +33,4 @@ out/
 .cursor/
 *.swp
 *.swo 
+/fogbugz-backup-tools
