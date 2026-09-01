@@ -1,22 +1,52 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Backfills changed FogBugz cases in reverse edit-date order.
+    Backs up FogBugz cases edited since a given date.
 
 .DESCRIPTION
-    Downloads cases in batches ordered by last edited date (newest first).
-    Each batch moves further back in time using edited:"..DATE" and stops
-    when a full batch contains only skipped cases.
+    Queries cases edited on/after -Since (defaulting to the backup's own
+    lastRunTimestamp in backup-state.json) and downloads any that changed.
+    Safe to re-run: BackupManager compares each case's dtLastUpdated against
+    the saved metadata.json and skips anything unchanged.
+
+    NOTE ON SORTING: The FogBugz/Manuscript search API
+    (https://api.manuscript.com/#Search-Cases) only accepts q, cols, max,
+    and token - there is no OrderBy/sort parameter documented, confirmed by
+    checking the official API reference. The previous version of this
+    script tried to sort by OrderBy:"-LastUpdated" / OrderBy:"-Edited" to
+    walk cases newest-edited-first; FogBugz either silently ignored that
+    (falling back to default ixBug-ascending order) or rejected it outright
+    with "Error 10: Invalid search query" depending on quoting. The
+    sSorts=LastUpdated.descending parameter visible in the web UI's filter
+    URL belongs to a separate internal /f/filters/ endpoint, not this API.
+
+    This version sidesteps sorting entirely: it filters with
+    edited:"<since>.." (documented full-text search syntax, same pattern
+    backup-all.ps1 already uses successfully for opened:"<date>..") and
+    fetches everything matching in one request, relying on the default
+    OrderBy:ixBug that backup-full.ts already appends automatically.
 
 .PARAMETER OutputDir
     The output directory for backups (REQUIRED)
 
+.PARAMETER Since
+    ISO 8601 timestamp. Only cases edited on/after this date are fetched.
+    Defaults to backup-state.json's lastRunTimestamp if omitted.
+
 .PARAMETER BatchSize
-    Cases per batch (default: 1000)
+    Maximum cases to fetch in this run (default: 2000). FogBugz allows up
+    to 100,000 per request. If Processed comes back equal to -BatchSize,
+    you likely hit the cap - rerun with a larger -BatchSize.
 
 .PARAMETER Query
-    Optional FogBugz search query filter. OrderBy:"-Edited" will be appended
-    if not provided.
+    Optional additional FogBugz search query filter, ANDed with the
+    edited: filter.
+
+.EXAMPLE
+    .\backup-changes.ps1 -OutputDir "F:\Fogbugz"
+
+.EXAMPLE
+    .\backup-changes.ps1 -OutputDir "F:\Fogbugz" -Since "2026-05-14T19:35:13Z" -BatchSize 5000
 #>
 
 param(
@@ -24,7 +54,10 @@ param(
     [string]$OutputDir,
 
     [Parameter(Mandatory=$false)]
-    [int]$BatchSize = 1000,
+    [string]$Since,
+
+    [Parameter(Mandatory=$false)]
+    [int]$BatchSize = 2000,
 
     [Parameter(Mandatory=$false)]
     [string]$Query = ""
@@ -40,132 +73,101 @@ function Write-Success {
     Write-Host "[OK] $Message" -ForegroundColor Green
 }
 
-function Write-Warning {
+function Write-Warn {
     param([string]$Message)
     Write-Host "[WARN] $Message" -ForegroundColor Yellow
 }
 
-function Write-Error {
+function Write-Err {
     param([string]$Message)
     Write-Host "[ERR] $Message" -ForegroundColor Red
 }
 
 if (-not $OutputDir) {
-    Write-Error 'Output directory is required. Usage: .\backup-changes.ps1 -OutputDir <path>'
+    Write-Err 'Output directory is required. Usage: .\backup-changes.ps1 -OutputDir <path> [-Since <ISO date>] [-BatchSize <n>]'
     exit 1
 }
 
-$BatchNumber = 1
-$TotalProcessed = 0
-$TotalDownloaded = 0
-$TotalSkipped = 0
-$TotalErrors = 0
-$NextBatchEditedBefore = $null
-$PreviousBatchCaseIds = $null
-
-Write-Status "FogBugz Changes Backup Script"
-Write-Status "Output Directory: $OutputDir"
-Write-Status "Batch Size: $BatchSize cases per run"
-if ($Query) { Write-Status "Query Filter: $Query" }
-Write-Status ""
-
-while ($true) {
-    $EffectiveQuery = $Query
-    if ($EffectiveQuery -notmatch 'OrderBy:') {
-        $EffectiveQuery = ($EffectiveQuery + " OrderBy:'-LastUpdated'").Trim()
-    }
-
-    $NpmArgs = @("run", "backup", "--")
-    $NpmArgs += @("--output", $OutputDir)
-    $NpmArgs += @("--max", $BatchSize)
-    if ($EffectiveQuery) {
-        $NpmArgs += @("--query", $EffectiveQuery)
-    }
-    if ($NextBatchEditedBefore) {
-        $NpmArgs += @("--edited-before", $NextBatchEditedBefore)
-    }
-
-    Write-Status ""
-    Write-Status "Batch $BatchNumber - Starting batch"
-    Write-Status "Running backup batch..."
-    Write-Status ""
-
-    $Output = & npm @NpmArgs 2>&1
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Batch $BatchNumber failed with exit code $LASTEXITCODE"
-        Write-Host $Output
-        exit 1
-    }
-
-    # Parse case IDs for duplicate batch detection
-    $CaseIdLines = $Output | Select-String "Processing Case (\d+)" | ForEach-Object { $_.Matches[0].Groups[1].Value }
-    $CurrentBatchCaseIds = $CaseIdLines -join ","
-    if ($BatchNumber -gt 1 -and $CurrentBatchCaseIds -eq $PreviousBatchCaseIds) {
-        Write-Warning "Detected identical batch of case IDs as previous batch. Stopping to prevent infinite loop."
-        break
-    }
-    $PreviousBatchCaseIds = $CurrentBatchCaseIds
-
-    # Parse pagination marker for edited date
-    $PaginationMatch = $Output | Select-String "\[PAGINATION\] Last case edited: (.+)"
-    $NextBatchEditedBefore = $null
-    if ($PaginationMatch) {
-        $NextBatchEditedBefore = $PaginationMatch.Matches[0].Groups[1].Value
-        Write-Status "Pagination marker found: $NextBatchEditedBefore"
-    }
-
-    $ProcessedMatch = $Output | Select-String "Total Processed: (\d+)"
-    $DownloadedMatch = $Output | Select-String "Downloaded: (\d+)"
-    $SkippedMatch = $Output | Select-String "Skipped: (\d+)"
-    $ErrorsMatch = $Output | Select-String "Errors: (\d+)"
-    $MaxReachedMatch = $Output | Select-String "Maximum case limit reached"
-
-    if ($ProcessedMatch) {
-        $Processed = [int]$ProcessedMatch.Matches[0].Groups[1].Value
-        $Downloaded = [int]$DownloadedMatch.Matches[0].Groups[1].Value
-        $Skipped = [int]$SkippedMatch.Matches[0].Groups[1].Value
-        $Errors = [int]$ErrorsMatch.Matches[0].Groups[1].Value
-
-        $TotalProcessed += $Processed
-        $TotalDownloaded += $Downloaded
-        $TotalSkipped += $Skipped
-        $TotalErrors += $Errors
-
-        Write-Success "Batch $BatchNumber complete:"
-        Write-Host "  Processed: $Processed (Downloaded: $Downloaded, Skipped: $Skipped, Errors: $Errors)"
-
-        if ($Processed -eq $BatchSize -and $Downloaded -eq 0) {
-            Write-Warning "Full batch had zero downloads (all skipped). Stopping changes backup."
-            break
-        }
-
-        if ($MaxReachedMatch -and $Processed -eq $BatchSize -and $NextBatchEditedBefore) {
-            $BatchNumber++
-            Write-Status "Maximum cases in batch reached. Continue with next batch using edited date pagination..."
-            continue
-        } else {
-            break
-        }
+if (-not $Since) {
+    $StateFile = Join-Path $OutputDir "backup-state.json"
+    if (Test-Path $StateFile) {
+        $State = Get-Content $StateFile -Raw | ConvertFrom-Json
+        $Since = $State.lastRunTimestamp
+        Write-Status "No -Since given; using backup-state.json lastRunTimestamp: $Since"
     } else {
-        Write-Error "Could not parse backup output"
-        Write-Host $Output
+        Write-Err "No -Since given and no backup-state.json found in $OutputDir. Pass -Since <ISO 8601 date> explicitly."
         exit 1
     }
 }
+
+$EffectiveQuery = "edited:`"$Since..`""
+if ($Query) { $EffectiveQuery = "$Query $EffectiveQuery".Trim() }
+
+Write-Status "FogBugz Changes Backup Script"
+Write-Status "Output Directory: $OutputDir"
+Write-Status "Since: $Since"
+Write-Status "Batch Size: $BatchSize"
+Write-Status "Query: $EffectiveQuery"
+Write-Status ""
+
+# PowerShell strips/mangles embedded double-quote characters when marshaling
+# argv to a child process - this happens even calling node.exe directly, not
+# just through the npm.cmd/npx.cmd batch shims. Since our query needs literal
+# quotes around the date range (edited:"2026-05-14T19:35:13Z..") to survive,
+# pass it via an environment variable instead: env vars go to the child
+# process as raw strings with no argv escaping, so quotes always come through
+# intact. backup-full.ts reads FOGBUGZ_QUERY_OVERRIDE in preference to --query.
+$env:FOGBUGZ_QUERY_OVERRIDE = $EffectiveQuery
+$ScriptArgs = @("--output", $OutputDir, "--max", $BatchSize)
+
+Write-Status "Running backup..."
+Write-Status ""
+
+try {
+    $Output = & node -r ts-node/register "$PSScriptRoot\backup-full.ts" @ScriptArgs 2>&1
+} finally {
+    Remove-Item Env:\FOGBUGZ_QUERY_OVERRIDE -ErrorAction SilentlyContinue
+}
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Err "Backup failed with exit code $LASTEXITCODE"
+    Write-Host $Output
+    exit 1
+}
+
+Write-Host $Output
+
+$ProcessedMatch = $Output | Select-String "Total Processed: (\d+)"
+$DownloadedMatch = $Output | Select-String "Downloaded: (\d+)"
+$SkippedMatch = $Output | Select-String "Skipped: (\d+)"
+$ErrorsMatch = $Output | Select-String "Errors: (\d+)"
+
+if (-not $ProcessedMatch) {
+    Write-Err "Could not parse backup output"
+    exit 1
+}
+
+$Processed = [int]$ProcessedMatch.Matches[0].Groups[1].Value
+$Downloaded = [int]$DownloadedMatch.Matches[0].Groups[1].Value
+$Skipped = [int]$SkippedMatch.Matches[0].Groups[1].Value
+$Errors = [int]$ErrorsMatch.Matches[0].Groups[1].Value
 
 Write-Status ""
 Write-Host "$('='*60)"
 Write-Host "Changes Backup Complete"
 Write-Host "$('='*60)"
-Write-Success "Total Cases Processed: $TotalProcessed"
-Write-Host "  Downloaded: $TotalDownloaded"
-Write-Host "  Skipped: $TotalSkipped"
-Write-Host "  Errors: $TotalErrors"
+Write-Success "Total Cases Processed: $Processed"
+Write-Host "  Downloaded: $Downloaded"
+Write-Host "  Skipped: $Skipped"
+Write-Host "  Errors: $Errors"
 Write-Host "$('='*60)"
 
-if ($TotalErrors -gt 0) {
-    Write-Warning "Some cases had errors. Review logs above."
+if ($Processed -eq $BatchSize) {
+    Write-Warn "Processed count equals -BatchSize ($BatchSize). You likely hit the cap and there may be more changed cases beyond this batch - rerun with a larger -BatchSize."
+}
+
+if ($Errors -gt 0) {
+    Write-Warn "Some cases had errors. Review logs above."
     exit 1
 }
 

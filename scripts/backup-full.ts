@@ -226,6 +226,18 @@ function parseArgs(): BackupOptions {
     }
   }
 
+  // Windows PowerShell can mangle/strip embedded double-quote characters when
+  // marshaling argv to a child process (even calling node.exe directly, not
+  // just through the npm.cmd/npx.cmd batch shims). FogBugz query values that
+  // need literal quotes - e.g. edited:"2026-05-14T19:35:13Z.." - can arrive
+  // with the quotes stripped, which breaks parsing on the embedded colons.
+  // As a reliable workaround, allow the query to be passed via an
+  // environment variable instead: env vars are passed to child processes
+  // as raw strings with no argv escaping involved, so quotes always survive.
+  if (process.env.FOGBUGZ_QUERY_OVERRIDE) {
+    options.query = process.env.FOGBUGZ_QUERY_OVERRIDE;
+  }
+
   return options;
 }
 
