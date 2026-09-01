@@ -20,7 +20,7 @@ interface Tool {
 // Tool: Create a new FogBugz case
 export const createCaseTool: Tool = {
   name: 'fogbugz_create_case',
-  description: 'Creates a new FogBugz case with optional screenshot attachments.',
+  description: 'Creates a new FogBugz case, optionally with tags, a parent case, subcases, and screenshot attachments.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -58,6 +58,23 @@ export const createCaseTool: Tool = {
         description: 'Person to assign the case to',
         optional: true,
       },
+      tags: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Tags to set on the new case',
+        optional: true,
+      },
+      parentCase: {
+        type: 'number',
+        description: 'Case ID to make the new case a subcase of',
+        optional: true,
+      },
+      childCases: {
+        type: 'array',
+        items: { type: 'number' },
+        description: 'Existing case IDs to attach as subcases of the new case',
+        optional: true,
+      },
       attachmentPath: {
         type: 'string',
         description: 'Path to a screenshot or file to attach',
@@ -81,7 +98,7 @@ createCaseTool.execute = async (input: { title: string; project: string }) => {
 // Tool: Update an existing FogBugz case
 export const updateCaseTool: Tool = {
   name: 'fogbugz_update_case',
-  description: 'Updates an existing FogBugz case with new field values.',
+  description: 'Updates an existing FogBugz case with new field values, including tags and parent/child case relationships. Does not change case status.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -117,6 +134,35 @@ export const updateCaseTool: Tool = {
       priority: {
         type: ['number', 'string'],
         description: 'Priority level (number 1-7) or name',
+        optional: true,
+      },
+      tags: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Complete list of tags for the case. This REPLACES all existing tags - any tag not in this list is removed. To add or remove individual tags without disturbing the rest, use addTags/removeTags instead.',
+        optional: true,
+      },
+      addTags: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Tags to add, preserving the tags already on the case. Case-insensitive, so duplicates are ignored.',
+        optional: true,
+      },
+      removeTags: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Tags to remove, preserving the other tags on the case. Case-insensitive.',
+        optional: true,
+      },
+      parentCase: {
+        type: 'number',
+        description: 'Case ID to make this case a subcase of. Use 0 to detach it from its current parent.',
+        optional: true,
+      },
+      childCases: {
+        type: 'array',
+        items: { type: 'number' },
+        description: 'Case IDs to attach as subcases of this case. Additive - existing children are left alone. To detach a child, update that child with parentCase 0.',
         optional: true,
       },
       attachmentPath: {
@@ -276,7 +322,7 @@ export const fogbugzTools = [
   downloadCaseTool,
   {
     name: 'fogbugz_get_case_details',
-    description: 'Gets the full content of a FogBugz case, including title and all events.',
+    description: 'Gets the full content of a FogBugz case, including title, tags, parent/child cases, and all events.',
     inputSchema: {
       type: 'object',
       properties: {

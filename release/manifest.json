@@ -1,0 +1,35 @@
+{
+  "dxt_version": "0.1",
+  "name": "fogbugz-mcp",
+  "display_name": "FogBugz",
+  "version": "1.1.1",
+  "description": "Interact with FogBugz issue tracking from Claude",
+  "author": { "name": "Webb Myers" },
+  "user_config": {
+    "fogbugz_url": {
+      "type": "string",
+      "title": "FogBugz URL",
+      "description": "Base URL of your FogBugz instance, e.g. https://yourcompany.fogbugz.com",
+      "required": true
+    },
+    "fogbugz_api_key": {
+      "type": "string",
+      "title": "FogBugz API Token",
+      "description": "Your personal FogBugz API token (Avatar menu > User Options > API Tokens). Cases are created and edited as the user this token belongs to, so use your own and do not share it.",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "FOGBUGZ_URL": "${user_config.fogbugz_url}",
+        "FOGBUGZ_API_KEY": "${user_config.fogbugz_api_key}"
+      }
+    }
+  }
+}

@@ -82,6 +82,8 @@ export interface CreateCaseParams {
   ixPriority?: number;
   sPersonAssignedTo?: string;
   ixPersonAssignedTo?: number;
+  sTags?: string;
+  ixBugParent?: number;
   [key: string]: any;
 }
 
@@ -99,6 +101,8 @@ export interface EditCaseParams {
   ixPriority?: number;
   sPersonAssignedTo?: string;
   ixPersonAssignedTo?: number;
+  sTags?: string;
+  ixBugParent?: number;
   [key: string]: any;
 }
 

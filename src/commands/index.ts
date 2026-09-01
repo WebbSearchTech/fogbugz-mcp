@@ -15,6 +15,9 @@ export async function getCaseDetails(api: FogBugzApi, args: any): Promise<string
         'sProject',
         'sArea',
         'sFixFor',
+        'tags',
+        'ixBugParent',
+        'ixBugChildren',
         'events',
       ],
       max: 1,
@@ -31,6 +34,9 @@ export async function getCaseDetails(api: FogBugzApi, args: any): Promise<string
       project: bugCase.sProject,
       area: bugCase.sArea,
       milestone: bugCase.sFixFor,
+      tags: normalizeTags(bugCase.tags),
+      parentCase: bugCase.ixBugParent || null,
+      childCases: Array.isArray(bugCase.ixBugChildren) ? bugCase.ixBugChildren : [],
       events: bugCase.events,
       message: `Fetched details for case #${bugCase.ixBug}: "${bugCase.sTitle}"`,
     });
@@ -47,6 +53,69 @@ import { BackupManager } from '../backup/manager';
  */
 
 /**
+ * Normalizes the `tags` column. Live responses use a flat string array; the
+ * API docs show [{ tag: "..." }], so accept either.
+ */
+function normalizeTags(raw: any): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((t: any) => (typeof t === 'string' ? t : t?.tag ?? t?.sTag))
+    .filter((t: any): t is string => typeof t === 'string' && t.length > 0);
+}
+
+/**
+ * Fetches the tags currently on a case. `sTags` replaces the entire tag set,
+ * so add/remove edits have to read the existing tags first.
+ */
+async function fetchCaseTags(api: FogBugzApi, caseId: number): Promise<string[]> {
+  const cases = await api.searchCases({
+    q: caseId.toString(),
+    cols: ['ixBug', 'tags'],
+    max: 1,
+  });
+  if (!cases || cases.length === 0) {
+    throw new Error(`Case ${caseId} not found.`);
+  }
+  return normalizeTags(cases[0].tags);
+}
+
+/**
+ * Applies add/remove lists to a tag set. FogBugz tags are case-insensitive, so
+ * matching is too; existing casing wins on a duplicate add.
+ */
+function mergeTags(current: string[], add: string[] = [], remove: string[] = []): string[] {
+  const removeSet = new Set(remove.map(t => t.toLowerCase()));
+  const result = current.filter(t => !removeSet.has(t.toLowerCase()));
+  for (const tag of add) {
+    if (!result.some(t => t.toLowerCase() === tag.toLowerCase())) {
+      result.push(tag);
+    }
+  }
+  return result;
+}
+
+/**
+ * Points each child case at `parentId`. FogBugz only exposes the child's
+ * `ixBugParent`, so attaching children means editing each child in turn.
+ * Returns a message for each child that could not be attached.
+ */
+async function attachChildCases(
+  api: FogBugzApi,
+  parentId: number,
+  childCases: number[]
+): Promise<string[]> {
+  const failures: string[] = [];
+  for (const childId of childCases) {
+    try {
+      await api.updateCase({ ixBug: childId, ixBugParent: parentId });
+    } catch (error: any) {
+      failures.push(`#${childId}: ${error.message}`);
+    }
+  }
+  return failures;
+}
+
+/**
  * Creates a new FogBugz case
  */
 export async function createCase(api: FogBugzApi, args: any): Promise<string> {
@@ -58,6 +127,9 @@ export async function createCase(api: FogBugzApi, args: any): Promise<string> {
     milestone,
     priority,
     assignee,
+    tags,
+    parentCase,
+    childCases,
     attachmentPath,
   } = args;
 
@@ -72,6 +144,9 @@ export async function createCase(api: FogBugzApi, args: any): Promise<string> {
   if (area) params.sArea = area;
   if (milestone) params.sFixFor = milestone;
   if (assignee) params.sPersonAssignedTo = assignee;
+  if (tags !== undefined) params.sTags = tags.join(',');
+  // 0 means "no parent", so an explicit value has to survive the check
+  if (parentCase !== undefined) params.ixBugParent = parentCase;
 
   // Handle priority (could be a number or string)
   if (priority !== undefined) {
@@ -94,12 +169,23 @@ export async function createCase(api: FogBugzApi, args: any): Promise<string> {
   try {
     // Create the case
     const newCase = await api.createCase(params, attachments);
-    
+
+    // Children can only be attached once the parent has an ID
+    const childFailures = childCases && childCases.length > 0
+      ? await attachChildCases(api, newCase.ixBug, childCases)
+      : [];
+
     // Generate a response
     const caseLink = api.getCaseLink(newCase.ixBug);
     return JSON.stringify({
       caseId: newCase.ixBug,
       caseLink,
+      ...(tags !== undefined ? { tags } : {}),
+      ...(parentCase !== undefined ? { parentCase } : {}),
+      ...(childCases && childCases.length > 0
+        ? { childCases: childCases.filter((id: number) => !childFailures.some(f => f.startsWith(`#${id}:`))) }
+        : {}),
+      ...(childFailures.length > 0 ? { childCaseErrors: childFailures } : {}),
       message: `Created case #${newCase.ixBug}: "${title}"${project ? ' in ' + project : ''}${assignee ? ', assigned to ' + assignee : ''}.`,
     });
   } catch (error: any) {
@@ -121,6 +207,11 @@ export async function updateCase(api: FogBugzApi, args: any): Promise<string> {
     area,
     milestone,
     priority,
+    tags,
+    addTags,
+    removeTags,
+    parentCase,
+    childCases,
     attachmentPath,
   } = args;
 
@@ -135,6 +226,8 @@ export async function updateCase(api: FogBugzApi, args: any): Promise<string> {
   if (project) params.sProject = project;
   if (area) params.sArea = area;
   if (milestone) params.sFixFor = milestone;
+  // 0 detaches the case from its parent, so an explicit value has to survive the check
+  if (parentCase !== undefined) params.ixBugParent = parentCase;
 
   // Handle priority (could be a number or string)
   if (priority !== undefined) {
@@ -155,14 +248,33 @@ export async function updateCase(api: FogBugzApi, args: any): Promise<string> {
   }
 
   try {
+    // `sTags` replaces the whole tag set, so add/remove has to start from the
+    // current tags. An explicit `tags` list is the base when both are given.
+    let resolvedTags: string[] | undefined;
+    if (tags !== undefined || addTags !== undefined || removeTags !== undefined) {
+      const base = tags !== undefined ? tags : await fetchCaseTags(api, caseId);
+      resolvedTags = mergeTags(base, addTags, removeTags);
+      params.sTags = resolvedTags.join(',');
+    }
+
     // Update the case
     const updatedCase = await api.updateCase(params, attachments);
-    
+
+    const childFailures = childCases && childCases.length > 0
+      ? await attachChildCases(api, caseId, childCases)
+      : [];
+
     // Generate a response
     const caseLink = api.getCaseLink(updatedCase.ixBug);
     return JSON.stringify({
       caseId: updatedCase.ixBug,
       caseLink,
+      ...(resolvedTags !== undefined ? { tags: resolvedTags } : {}),
+      ...(parentCase !== undefined ? { parentCase } : {}),
+      ...(childCases && childCases.length > 0
+        ? { childCases: childCases.filter((id: number) => !childFailures.some(f => f.startsWith(`#${id}:`))) }
+        : {}),
+      ...(childFailures.length > 0 ? { childCaseErrors: childFailures } : {}),
       message: `Updated case #${updatedCase.ixBug}${title ? ': "' + title + '"' : ''}.`,
     });
   } catch (error: any) {

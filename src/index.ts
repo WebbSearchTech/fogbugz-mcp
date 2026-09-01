@@ -37,7 +37,7 @@ async function startMcpServer(api: FogBugzApi) {
   // Current protocol version we support
   const SERVER_PROTOCOL_VERSION = "2024-11-05";
   const SERVER_NAME = "FogBugz MCP Server";
-  const SERVER_VERSION = "1.0.0";
+  const SERVER_VERSION = "1.1.1";
 
   // Listen for JSON-RPC requests on stdin
   rl.on('line', async (line: string) => {
