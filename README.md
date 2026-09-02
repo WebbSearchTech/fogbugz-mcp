@@ -23,6 +23,9 @@ The detailed specification served as a blueprint for the development team, demon
 
 ## Installation
 
+> **Rotating your API token?** See [docs/API-TOKEN-ROTATION.md](docs/API-TOKEN-ROTATION.md) - tokens are
+> per-user, never expire, and may be configured in several places at once.
+
 ```bash
 # Install from npm
 npm install -g fogbugz-mcp
