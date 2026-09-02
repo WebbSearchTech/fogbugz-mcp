@@ -464,19 +464,26 @@ export async function createProject(api: FogBugzApi, args: any): Promise<string>
     // Add optional parameters if provided
     // For primaryContact, we need to use the ixPersonPrimaryContact parameter
     if (primaryContact) {
-      try {
-        // If primaryContact is a number, use it directly
-        if (!isNaN(Number(primaryContact))) {
-          params.ixPersonPrimaryContact = Number(primaryContact);
-        } else {
-          // Otherwise, try to find the person ID from the name
-          // We know Akari Lara has ID 2 from the API explorer output
-          if (primaryContact === 'Akari Lara') {
-            params.ixPersonPrimaryContact = 2;
-          }
+      if (!isNaN(Number(primaryContact))) {
+        params.ixPersonPrimaryContact = Number(primaryContact);
+      } else {
+        // Look the person up by name or email rather than guessing an ID.
+        // Report an unmatched name instead of silently creating the project
+        // without the contact the caller asked for.
+        const people = await api.listPeople();
+        const wanted = String(primaryContact).toLowerCase();
+        const match = people.find(
+          person =>
+            person.sFullName?.toLowerCase() === wanted ||
+            person.sPerson?.toLowerCase() === wanted ||
+            person.sEmail?.toLowerCase() === wanted
+        );
+        if (!match) {
+          return JSON.stringify({
+            error: `Primary contact "${primaryContact}" not found. Pass a full name, email, or ixPerson ID.`,
+          });
         }
-      } catch (err) {
-        console.error('Error setting primary contact:', err);
+        params.ixPersonPrimaryContact = match.ixPerson;
       }
     }
     

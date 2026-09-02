@@ -37,7 +37,7 @@ async function startMcpServer(api: FogBugzApi) {
   // Current protocol version we support
   const SERVER_PROTOCOL_VERSION = "2024-11-05";
   const SERVER_NAME = "FogBugz MCP Server";
-  const SERVER_VERSION = "1.1.1";
+  const SERVER_VERSION = "1.1.2";
 
   // Listen for JSON-RPC requests on stdin
   rl.on('line', async (line: string) => {
@@ -243,10 +243,24 @@ async function main() {
     const user = await api.getCurrentUser();
     log.info(`Connected to FogBugz as ${user.sPerson || user.sFullName} (${user.sEmail})`);
 
-    // Initialize all resources
-    await resources.users.initialize?.();
-    await resources.projects.initialize?.();
-    log.info('All resources initialized successfully.');
+    // Prefetch the lookup caches. These are conveniences, not requirements:
+    // an account without permission to list people or projects would
+    // otherwise take down the whole server at startup, so a failure here is
+    // logged and the server carries on with the tools that do work.
+    for (const [label, resource] of [
+      ['users', resources.users],
+      ['projects', resources.projects],
+    ] as const) {
+      try {
+        await resource.initialize?.();
+      } catch (error: any) {
+        log.error(
+          `Could not preload ${label} (continuing anyway): ${error.message}. ` +
+          `Tools that rely on ${label} lookups may be limited.`
+        );
+      }
+    }
+    log.info('Resource initialization complete.');
 
     // Start the MCP server
     await startMcpServer(api);
