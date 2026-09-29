@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "fogbugz-mcp",
   "display_name": "FogBugz",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Interact with FogBugz issue tracking from Claude",
   "author": { "name": "Webb Myers" },
   "user_config": {

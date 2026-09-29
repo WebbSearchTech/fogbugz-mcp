@@ -399,6 +399,50 @@ export const downloadWikiAttachmentTool: Tool = {
   },
 };
 
+export const createWikiArticleTool: Tool = {
+  name: 'fogbugz_create_wiki_article',
+  description: 'Creates a FogBugz wiki article. body must be FogBugz HTML, not Markdown; the server sends it unchanged. Use HTML paragraphs/headings/lists, FogBugz internal wiki links (for example href="default.asp?W63"), and uploaded attachment URLs.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      wikiId: { type: 'number', description: 'The FogBugz wiki ID' },
+      headline: { type: 'string', description: 'Article title' },
+      body: { type: 'string', description: 'Complete article body as FogBugz HTML. Use <p> or <br> for visible line breaks; literal newline encoding is not specified by FogBugz.' },
+      tags: { type: 'array', items: { type: 'string' }, description: 'Optional article tags' },
+    },
+    required: ['wikiId', 'headline', 'body'],
+  },
+};
+
+export const editWikiArticleTool: Tool = {
+  name: 'fogbugz_edit_wiki_article',
+  description: 'Edits a FogBugz wiki article and creates a new revision. Supply only fields to change. If body is supplied, it replaces the entire article body and must be FogBugz HTML, not Markdown; it is sent unchanged. Supplying tags replaces the complete tag list.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      articleId: { type: 'number', description: 'The FogBugz article ID (ixWikiPage)' },
+      headline: { type: 'string', description: 'Optional replacement headline' },
+      body: { type: 'string', description: 'Optional complete replacement body as FogBugz HTML; use <p> or <br> for visible line breaks' },
+      tags: { type: 'array', items: { type: 'string' }, description: 'Optional complete replacement tag list; an empty array clears tags' },
+      revisionComment: { type: 'string', description: 'Optional comment recorded with the new revision' },
+    },
+    required: ['articleId'],
+  },
+};
+
+export const uploadWikiAttachmentTool: Tool = {
+  name: 'fogbugz_upload_wiki_attachment',
+  description: 'Uploads one image or other file to a FogBugz wiki and returns safe, relative HTML link/image snippets for use in an article body. The upload does not itself edit an article.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      wikiId: { type: 'number', description: 'The FogBugz wiki ID to receive the file' },
+      filePath: { type: 'string', description: 'Path to the local image or file to upload' },
+    },
+    required: ['wikiId', 'filePath'],
+  },
+};
+
 // All tools
 export const fogbugzTools = [
   createCaseTool,
@@ -414,6 +458,9 @@ export const fogbugzTools = [
   viewWikiArticleTool,
   searchWikiArticlesTool,
   downloadWikiAttachmentTool,
+  createWikiArticleTool,
+  editWikiArticleTool,
+  uploadWikiAttachmentTool,
   {
     name: 'fogbugz_get_case_details',
     description: 'Gets the full content of a FogBugz case, including title, tags, parent/child cases, and all events.',

@@ -80,6 +80,26 @@ export interface FogBugzWikiRevision {
   [key: string]: any;
 }
 
+export interface CreateWikiArticleParams {
+  ixWiki: number;
+  sHeadline: string;
+  sBody: string;
+  sTags?: string;
+}
+
+export interface EditWikiArticleParams {
+  ixWikiPage: number;
+  sHeadline?: string;
+  sBody?: string;
+  sComment?: string;
+  sTags?: string;
+}
+
+export interface WikiFileUploadResult {
+  sFileName: string;
+  sURL: string;
+}
+
 export interface FogBugzArea {
   ixArea: number;
   sArea: string;

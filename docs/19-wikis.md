@@ -674,3 +674,22 @@ Content-Type: image/png
 7. You can apply tags to articles to help with organization and categorization.
 8. Deleting a wiki does not permanently remove it—it can be restored using the undeleteWiki command.
 9. To view a specific version of an article or template, use the nRevision parameter with the viewArticle or viewTemplate commands.
+
+## Writing Articles Through MCP
+
+The `fogbugz_create_wiki_article` and `fogbugz_edit_wiki_article` tools use FogBugz's `newArticle` and `editArticle` JSON API commands.
+
+- Article bodies are HTML in the `sBody` field; Markdown is not converted. The MCP server passes HTML through without rewriting it.
+- Use explicit `<p>` and `<br>` elements for visible line breaks. FogBugz's API documentation does not specify LF versus CRLF handling.
+- Existing internal wiki links use FogBugz URLs such as `<a class="vb" href="default.asp?W63">CPC Thesaurus</a>`. Use the target article's `W<ixWikiPage>` URL form.
+- `fogbugz_edit_wiki_article` replaces the complete body when `body` is supplied. Omitted fields are left unchanged; supplying `tags` replaces the complete tag list.
+- FogBugz creates a new revision for edits. The MCP tool compares current and proposed body text after normalizing CRLF/CR to LF; if line endings are the only body difference, it skips sending that body to FogBugz to avoid a spurious revision. Any real body content is sent unchanged.
+- `fogbugz_upload_wiki_attachment` uploads a file to the wiki and returns relative HTML image/link snippets. Insert a returned snippet in the article body; the upload itself does not modify an article. The returned URL does not contain the API token.
+
+Example body:
+
+```html
+<h2>Import steps</h2>
+<p>Download and extract the source files.</p>
+<p><a class="vb" href="default.asp?W63">CPC Thesaurus</a></p>
+```

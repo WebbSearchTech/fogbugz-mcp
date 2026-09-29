@@ -105,6 +105,11 @@ This server provides the following MCP tools for LLMs:
 - `fogbugz_view_wiki_article` - Read an article or a specific revision, preserving FogBugz HTML
 - `fogbugz_search_wiki_articles` - Search wiki article headlines, HTML bodies, and tags
 - `fogbugz_download_wiki_attachment` - Download a wiki image or other attachment
+- `fogbugz_create_wiki_article` - Create an article with a FogBugz HTML body
+- `fogbugz_edit_wiki_article` - Edit an article and create a revision
+- `fogbugz_upload_wiki_attachment` - Upload a wiki image/file and get HTML snippets for linking it
+
+Wiki article bodies use FogBugz HTML, not Markdown. Edits replace the complete body when `body` is supplied; line-ending-only differences are ignored to avoid unnecessary revisions. See [docs/19-wikis.md](docs/19-wikis.md#writing-articles-through-mcp) for link and attachment conventions.
 
 ## Backup and Export
 

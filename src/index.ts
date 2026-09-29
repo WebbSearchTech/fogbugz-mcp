@@ -37,7 +37,7 @@ async function startMcpServer(api: FogBugzApi) {
   // Current protocol version we support
   const SERVER_PROTOCOL_VERSION = "2024-11-05";
   const SERVER_NAME = "FogBugz MCP Server";
-  const SERVER_VERSION = "1.2.0";
+  const SERVER_VERSION = "1.2.1";
 
   // Listen for JSON-RPC requests on stdin
   rl.on('line', async (line: string) => {
@@ -161,6 +161,15 @@ async function startMcpServer(api: FogBugzApi) {
             break;
           case 'fogbugz_download_wiki_attachment':
             content = await handlers.downloadWikiAttachment(api, args);
+            break;
+          case 'fogbugz_create_wiki_article':
+            content = await handlers.createWikiArticle(api, args);
+            break;
+          case 'fogbugz_edit_wiki_article':
+            content = await handlers.editWikiArticle(api, args);
+            break;
+          case 'fogbugz_upload_wiki_attachment':
+            content = await handlers.uploadWikiAttachment(api, args);
             break;
           default:
             throw new Error(`Unknown tool: ${name}`);

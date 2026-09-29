@@ -1,6 +1,7 @@
 import axios from 'axios';
 import FormData from 'form-data';
 import fs from 'fs';
+import path from 'path';
 import {
   FogBugzConfig,
   FogBugzCase,
@@ -12,6 +13,9 @@ import {
   FogBugzWiki,
   FogBugzWikiArticle,
   FogBugzWikiRevision,
+  CreateWikiArticleParams,
+  EditWikiArticleParams,
+  WikiFileUploadResult,
   CreateCaseParams,
   EditCaseParams,
   SearchParams,
@@ -300,6 +304,79 @@ export class FogBugzApi {
   async listRevisions(ixWikiPage: number): Promise<FogBugzWikiRevision[]> {
     const response = await this.request<{ revisions: FogBugzWikiRevision[] }>('listRevisions', { ixWikiPage });
     return response.revisions || [];
+  }
+
+  /** Create an article with an unmodified FogBugz HTML body. */
+  async createArticle(params: CreateWikiArticleParams): Promise<FogBugzWikiArticle> {
+    const response = await this.request<{
+      article?: FogBugzWikiArticle;
+      wikipage?: FogBugzWikiArticle;
+    }>('newArticle', params);
+    const article = response?.article ?? response?.wikipage;
+    if (!article || typeof article !== 'object' || article.ixWikiPage === undefined) {
+      throw new Error('Invalid response from API: ' + JSON.stringify(response));
+    }
+    return {
+      ...article,
+      sHeadline: article.sHeadline ?? params.sHeadline,
+    };
+  }
+
+  /** Edit an article; omitted fields are left unchanged by FogBugz. */
+  async updateArticle(
+    params: EditWikiArticleParams
+  ): Promise<Pick<FogBugzWikiArticle, 'ixWikiPage'> & Partial<FogBugzWikiArticle>> {
+    const response = await this.request<{
+      article?: FogBugzWikiArticle;
+      wikipage?: FogBugzWikiArticle | string;
+    }>('editArticle', params);
+    const article = response?.article ?? response?.wikipage;
+    if (article && typeof article === 'object') {
+      return {
+        ...article,
+        ixWikiPage: article.ixWikiPage ?? params.ixWikiPage,
+      };
+    }
+    if (article === '') {
+      return {
+        ixWikiPage: params.ixWikiPage,
+        ...(params.sHeadline !== undefined ? { sHeadline: params.sHeadline } : {}),
+      };
+    }
+    if (!response || article === undefined) {
+      throw new Error('Invalid response from API: ' + JSON.stringify(response));
+    }
+    throw new Error('Invalid response from API: ' + JSON.stringify(response));
+  }
+
+  /** Upload one file to a wiki for linking from an article's HTML body. */
+  async uploadWikiFile(ixWiki: number, filePath: string): Promise<WikiFileUploadResult> {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Wiki attachment file not found: ${filePath}`);
+    }
+
+    const response = await this.request<WikiFileUploadResult & {
+      upfiles?: { upfile?: { ixAttachment?: number; sFileName?: string } };
+    }>(
+      'wikiFileUpload',
+      { ixWiki },
+      [{ path: filePath, fieldName: 'File1' }]
+    );
+    if (response?.sURL) return response;
+
+    const uploadedFile = response?.upfiles?.upfile;
+    if (uploadedFile?.ixAttachment !== undefined) {
+      const sFileName = uploadedFile.sFileName || path.basename(filePath);
+      return {
+        sFileName,
+        sURL: `default.asp?pg=pgDownload&pgType=pgWikiAttachment&ixAttachment=${uploadedFile.ixAttachment}&sFileName=${encodeURIComponent(sFileName)}`,
+      };
+    }
+
+    if (!response) {
+      throw new Error('Invalid response from API: ' + JSON.stringify(response));
+    }
+    throw new Error('Invalid response from API: ' + JSON.stringify(response));
   }
 
   /**

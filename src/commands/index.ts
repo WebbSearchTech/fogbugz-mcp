@@ -137,7 +137,125 @@ export async function downloadWikiAttachment(api: FogBugzApi, args: any): Promis
     return JSON.stringify({ error: error.message });
   }
 }
-import { FogBugzApi } from '../api';
+
+export async function createWikiArticle(api: FogBugzApi, args: any): Promise<string> {
+  try {
+    const article = await api.createArticle({
+      ixWiki: args.wikiId,
+      sHeadline: args.headline,
+      sBody: args.body,
+      ...(Array.isArray(args.tags) && args.tags.length > 0 ? { sTags: args.tags.join(',') } : {}),
+    });
+    return JSON.stringify({
+      wikiId: args.wikiId,
+      articleId: article.ixWikiPage,
+      headline: article.sHeadline ?? args.headline,
+      message: `Created wiki article "${article.sHeadline ?? args.headline}".`,
+    });
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+
+export async function editWikiArticle(api: FogBugzApi, args: any): Promise<string> {
+  const params: EditWikiArticleParams = { ixWikiPage: args.articleId };
+  let hasChange = false;
+
+  if (args.headline !== undefined) {
+    params.sHeadline = args.headline;
+    hasChange = true;
+  }
+  if (args.body !== undefined) {
+    params.sBody = args.body;
+    hasChange = true;
+  }
+  if (args.tags !== undefined) {
+    if (!Array.isArray(args.tags)) return JSON.stringify({ error: 'tags must be an array of strings' });
+    params.sTags = args.tags.join(',');
+    hasChange = true;
+  }
+  if (args.revisionComment !== undefined) params.sComment = args.revisionComment;
+
+  if (!hasChange) {
+    return JSON.stringify({ error: 'Provide at least one field to change: headline, body, or tags.' });
+  }
+
+  try {
+    let bodyUnchanged = false;
+    let currentArticle: any;
+    if (typeof params.sBody === 'string' || params.sHeadline === undefined) {
+      currentArticle = await api.viewArticle(args.articleId);
+    }
+    if (typeof params.sBody === 'string') {
+      if (typeof currentArticle.sBody === 'string' &&
+          normalizeLineEndings(currentArticle.sBody) === normalizeLineEndings(params.sBody)) {
+        delete params.sBody;
+        bodyUnchanged = true;
+      }
+    }
+
+    const hasContentChange = args.headline !== undefined ||
+      params.sBody !== undefined ||
+      params.sTags !== undefined;
+    if (!hasContentChange) {
+      return JSON.stringify({
+        articleId: args.articleId,
+        unchanged: true,
+        message: bodyUnchanged
+          ? 'No article revision created: the body differs only by line endings.'
+          : 'No article revision created: the requested content is unchanged.',
+      });
+    }
+
+    if (params.sHeadline === undefined) {
+      if (typeof currentArticle?.sHeadline !== 'string' || currentArticle.sHeadline.length === 0) {
+        return JSON.stringify({ error: `Could not read the current headline for article ${args.articleId}.` });
+      }
+      params.sHeadline = currentArticle.sHeadline;
+    }
+
+    const article = await api.updateArticle(params);
+    return JSON.stringify({
+      articleId: args.articleId,
+      headline: article.sHeadline ?? args.headline,
+      message: `Updated wiki article ${args.articleId}; FogBugz created a new revision.`,
+    });
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+
+function normalizeLineEndings(value: string): string {
+  return value.replace(/\r\n?/g, '\n');
+}
+
+function escapeWikiHtml(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+export async function uploadWikiAttachment(api: FogBugzApi, args: any): Promise<string> {
+  try {
+    const attachment = await api.uploadWikiFile(args.wikiId, args.filePath);
+    const url = escapeWikiHtml(attachment.sURL);
+    const filename = escapeWikiHtml(attachment.sFileName);
+    return JSON.stringify({
+      wikiId: args.wikiId,
+      fileName: attachment.sFileName,
+      sURL: attachment.sURL,
+      htmlImage: `<img src="${url}" alt="${filename}">`,
+      htmlLink: `<a href="${url}">${filename}</a>`,
+      message: 'Uploaded the file to the wiki. Use the returned HTML snippet in an article body; the URL is relative and contains no API token.',
+    });
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+import { EditWikiArticleParams, FogBugzApi } from '../api';
 import { FileAttachment, CreateCaseParams, EditCaseParams, CreateProjectParams } from '../api/types';
 import { BackupManager } from '../backup/manager';
 
