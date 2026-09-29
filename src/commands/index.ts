@@ -44,6 +44,99 @@ export async function getCaseDetails(api: FogBugzApi, args: any): Promise<string
     return JSON.stringify({ error: error.message });
   }
 }
+
+function normalizeWikiTags(article: any): string[] {
+  if (Array.isArray(article.tags)) {
+    return article.tags
+      .map((tag: any) => typeof tag === 'string' ? tag : tag?.sTag ?? tag?.tag)
+      .filter((tag: any): tag is string => typeof tag === 'string' && tag.length > 0);
+  }
+  if (Array.isArray(article.sTags)) return article.sTags;
+  if (typeof article.sTags === 'string') return article.sTags.split(',').map((tag: string) => tag.trim()).filter(Boolean);
+  return [];
+}
+
+function normalizeWikiArticle(article: any): any {
+  return {
+    ...article,
+    tags: normalizeWikiTags(article),
+  };
+}
+
+export async function listWikis(api: FogBugzApi): Promise<string> {
+  try {
+    return JSON.stringify(await api.listWikis());
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+
+export async function listWikiArticles(api: FogBugzApi, args: any): Promise<string> {
+  try {
+    const articles = await api.listArticles(args.wikiId);
+    return JSON.stringify(articles.map(normalizeWikiArticle));
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+
+export async function viewWikiArticle(api: FogBugzApi, args: any): Promise<string> {
+  try {
+    const article = await api.viewArticle(args.articleId, args.revision);
+    return JSON.stringify({
+      ...normalizeWikiArticle(article),
+      ixWikiPage: article.ixWikiPage ?? args.articleId,
+    });
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+
+export async function searchWikiArticles(api: FogBugzApi, args: any): Promise<string> {
+  const query = String(args.query || '').trim().toLowerCase();
+  const limit = Math.min(Math.max(Number(args.limit) || 20, 1), 100);
+
+  if (!query) return JSON.stringify({ error: 'query is required' });
+
+  try {
+    const wikiIds = args.wikiId !== undefined
+      ? [Number(args.wikiId)]
+      : (await api.listWikis()).map(wiki => wiki.ixWiki);
+    const matches: any[] = [];
+
+    for (const wikiId of wikiIds) {
+      const articles = await api.listArticles(wikiId);
+      for (const article of articles) {
+        if (matches.length >= limit) break;
+        const details = normalizeWikiArticle(await api.viewArticle(article.ixWikiPage));
+        details.ixWiki = details.ixWiki ?? wikiId;
+        details.ixWikiPage = details.ixWikiPage ?? article.ixWikiPage;
+        const haystack = [details.sHeadline, details.sBody, ...details.tags]
+          .filter(Boolean)
+          .join('\n')
+          .toLowerCase();
+        if (haystack.includes(query)) {
+          matches.push(details);
+        }
+      }
+      if (matches.length >= limit) break;
+    }
+
+    return JSON.stringify({ query: args.query, count: matches.length, articles: matches });
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+
+export async function downloadWikiAttachment(api: FogBugzApi, args: any): Promise<string> {
+  try {
+    const url = api.getAuthenticatedFileUrl(args.url);
+    await api.downloadFile(url, args.outputPath);
+    return JSON.stringify({ outputPath: args.outputPath, message: 'Wiki attachment downloaded successfully.' });
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
 import { FogBugzApi } from '../api';
 import { FileAttachment, CreateCaseParams, EditCaseParams, CreateProjectParams } from '../api/types';
 import { BackupManager } from '../backup/manager';

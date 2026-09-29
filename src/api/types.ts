@@ -42,6 +42,44 @@ export interface FogBugzProject {
   [key: string]: any;
 }
 
+export interface FogBugzWiki {
+  ixWiki: number;
+  sWiki: string;
+  sTagLineHTML?: string;
+  ixWikiPageRoot?: number;
+  ixTemplate?: number;
+  fDeleted?: boolean;
+  [key: string]: any;
+}
+
+export interface FogBugzWikiAttachment {
+  sFileName?: string;
+  sURL?: string;
+  [key: string]: any;
+}
+
+export interface FogBugzWikiArticle {
+  ixWikiPage: number;
+  ixWiki?: number;
+  sHeadline: string;
+  sBody?: string;
+  nRevision?: number;
+  sTags?: string | string[];
+  tags?: Array<string | { sTag?: string; tag?: string }>;
+  attachments?: FogBugzWikiAttachment[];
+  dt?: string;
+  dtLastUpdated?: string;
+  [key: string]: any;
+}
+
+export interface FogBugzWikiRevision {
+  nRevision: number;
+  ixPerson?: number;
+  sComment?: string;
+  dt?: string;
+  [key: string]: any;
+}
+
 export interface FogBugzArea {
   ixArea: number;
   sArea: string;

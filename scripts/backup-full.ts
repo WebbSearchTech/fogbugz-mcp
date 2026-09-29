@@ -93,11 +93,11 @@ async function runBackup(options: BackupOptions): Promise<void> {
   
   // Fetch cases to backup (FogBugz returns results in default order)
   // Include dtOpened to enable date-based pagination for subsequent batches
-  const cases = await api.searchCases({
+  const cases = (await api.searchCases({
     q: searchQuery,
     cols: ['ixBug', 'sTitle', 'dtLastUpdated', 'dtOpened'],
     max: maxCases
-  });
+  })) || [];
 
   // If countOnly mode, just report and exit
   if (countOnly) {
@@ -110,8 +110,7 @@ async function runBackup(options: BackupOptions): Promise<void> {
   }
 
   if (!cases || cases.length === 0) {
-    console.log('No cases found to backup.');
-    return;
+    console.log('No cases found to backup; continuing with wikis.');
   }
 
   console.log(`Found ${cases.length} cases to process.`);
@@ -147,10 +146,22 @@ async function runBackup(options: BackupOptions): Promise<void> {
     processed++;
   }
 
+  console.log('');
+  console.log('Backing up wikis...');
+  const wikiResults = await backupManager.downloadWikis();
+  const wikiDownloaded = wikiResults.filter(result => result.status === 'downloaded').length;
+  const wikiSkipped = wikiResults.filter(result => result.status === 'skipped').length;
+  const wikiErrors = wikiResults.filter(result => result.status === 'error').length;
+  const wikiArticles = wikiResults.reduce((total, result) => total + (result.articleCount || 0), 0);
+  const wikiAttachments = wikiResults.reduce((total, result) => total + (result.attachmentCount || 0), 0);
+  console.log(`Wikis: ${wikiDownloaded} downloaded, ${wikiSkipped} skipped, ${wikiErrors} errors`);
+  console.log(`Wiki articles: ${wikiArticles}; attachments: ${wikiAttachments}`);
+
   // Update state
   backupManager.updateState({
     totalCasesProcessed: (state?.totalCasesProcessed || 0) + processed,
-    lastCaseIdProcessed: lastCaseId
+    lastCaseIdProcessed: lastCaseId,
+    totalWikisProcessed: (state?.totalWikisProcessed || 0) + wikiResults.length
   });
 
   console.log('');

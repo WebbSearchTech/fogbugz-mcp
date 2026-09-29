@@ -100,6 +100,11 @@ This server provides the following MCP tools for LLMs:
 - `fogbugz_get_case_details` - Get full details of a case including all events
 - `fogbugz_download_case` - Download a complete case backup with attachments
 - `fogbugz_create_project` - Create a new project in FogBugz
+- `fogbugz_list_wikis` - List visible FogBugz wikis
+- `fogbugz_list_wiki_articles` - List articles in a wiki
+- `fogbugz_view_wiki_article` - Read an article or a specific revision, preserving FogBugz HTML
+- `fogbugz_search_wiki_articles` - Search wiki article headlines, HTML bodies, and tags
+- `fogbugz_download_wiki_attachment` - Download a wiki image or other attachment
 
 ## Backup and Export
 
@@ -131,6 +136,10 @@ my-backups/
     ├── 85105_screenshot.png   # Attachments prefixed with event ID
     └── 85106_document.pdf
 ```
+
+The full backup also exports visible wikis under `wikis/wiki-<id>/article-<id>/`. Article metadata and
+FogBugz HTML are stored in `metadata.json`; exposed article attachments are downloaded beside it.
+Unchanged articles are skipped by revision number when FogBugz supplies one.
 
 ### Using the CLI Backup Script
 

@@ -9,6 +9,9 @@ import {
   FogBugzFixFor,
   FogBugzPriority,
   FogBugzPerson,
+  FogBugzWiki,
+  FogBugzWikiArticle,
+  FogBugzWikiRevision,
   CreateCaseParams,
   EditCaseParams,
   SearchParams,
@@ -268,11 +271,58 @@ export class FogBugzApi {
     return response.cases;
   }
 
+  /** Get all wikis visible to the current user. */
+  async listWikis(): Promise<FogBugzWiki[]> {
+    const response = await this.request<{ wikis: FogBugzWiki[] }>('listWikis');
+    return response.wikis || [];
+  }
+
+  /** Get the article index for a wiki. */
+  async listArticles(ixWiki: number): Promise<FogBugzWikiArticle[]> {
+    const response = await this.request<{ articles: FogBugzWikiArticle[] }>('listArticles', { ixWiki });
+    return response.articles || [];
+  }
+
+  /** Get an article body, optionally at a specific revision. */
+  async viewArticle(ixWikiPage: number, nRevision?: number): Promise<FogBugzWikiArticle> {
+    const params = nRevision === undefined ? {} : { nRevision };
+    const response = await this.request<{ wikipage: FogBugzWikiArticle }>('viewArticle', {
+      ixWikiPage,
+      ...params,
+    });
+    if (!response || !response.wikipage) {
+      throw new Error('Invalid response from API: ' + JSON.stringify(response));
+    }
+    return response.wikipage;
+  }
+
+  /** List the revision history for an article. */
+  async listRevisions(ixWikiPage: number): Promise<FogBugzWikiRevision[]> {
+    const response = await this.request<{ revisions: FogBugzWikiRevision[] }>('listRevisions', { ixWikiPage });
+    return response.revisions || [];
+  }
+
   /**
    * Get a direct link to a case
    */
   getCaseLink(caseId: number): string {
     return `${this.baseUrl}/default.asp?${caseId}`;
+  }
+
+  /** Build an authenticated absolute URL for a FogBugz file response. */
+  getAuthenticatedFileUrl(sURL: string): string {
+    let url = sURL.replace(/&amp;/g, '&');
+
+    if (!url.startsWith('http')) {
+      url = `${this.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+    }
+
+    if (url.includes('sTicket=')) {
+      return url.replace(/sTicket=[^&]*/, `token=${this.apiKey}`);
+    }
+
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}token=${this.apiKey}`;
   }
 
 

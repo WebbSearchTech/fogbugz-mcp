@@ -9,6 +9,7 @@ export interface BackupState {
   lastRunTimestamp: string;
   totalCasesProcessed: number;
   lastCaseIdProcessed?: number;
+  totalWikisProcessed?: number;
 }
 
 /**
@@ -18,6 +19,14 @@ export interface CaseDownloadResult {
   caseId: number;
   status: 'downloaded' | 'skipped' | 'error';
   message: string;
+  attachmentCount?: number;
+}
+
+export interface WikiDownloadResult {
+  wikiId: number;
+  status: 'downloaded' | 'skipped' | 'error';
+  message: string;
+  articleCount?: number;
   attachmentCount?: number;
 }
 
@@ -54,7 +63,8 @@ export class BackupManager {
     if (!fs.existsSync(this.stateFilePath)) {
       const initialState: BackupState = {
         lastRunTimestamp: new Date().toISOString(),
-        totalCasesProcessed: 0
+        totalCasesProcessed: 0,
+        totalWikisProcessed: 0,
       };
       fs.writeFileSync(this.stateFilePath, JSON.stringify(initialState, null, 2), 'utf-8');
     }
@@ -77,7 +87,8 @@ export class BackupManager {
   updateState(updates: Partial<BackupState>): void {
     const currentState = this.readState() || {
       lastRunTimestamp: new Date().toISOString(),
-      totalCasesProcessed: 0
+      totalCasesProcessed: 0,
+      totalWikisProcessed: 0,
     };
 
     const newState: BackupState = {
@@ -173,30 +184,108 @@ export class BackupManager {
     }
   }
 
+  /** Download all currently visible articles in a wiki. */
+  async downloadWiki(wikiId: number): Promise<WikiDownloadResult> {
+    try {
+      const articles = await this.api.listArticles(wikiId);
+      let downloadedArticles = 0;
+      let skippedArticles = 0;
+      let attachmentCount = 0;
+
+      for (const articleSummary of articles) {
+        const article = await this.api.viewArticle(articleSummary.ixWikiPage);
+        const articleFolderPath = path.join(
+          this.backupDir,
+          'wikis',
+          `wiki-${wikiId}`,
+          `article-${article.ixWikiPage}`
+        );
+        const metadataPath = path.join(articleFolderPath, 'metadata.json');
+
+        if (fs.existsSync(metadataPath)) {
+          const existingMetadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
+          if (existingMetadata.nRevision !== undefined &&
+              article.nRevision !== undefined &&
+              existingMetadata.nRevision === article.nRevision) {
+            skippedArticles++;
+            continue;
+          }
+        }
+
+        fs.mkdirSync(articleFolderPath, { recursive: true });
+        fs.writeFileSync(metadataPath, JSON.stringify(article, null, 2), 'utf-8');
+
+        const attachments = this.getWikiAttachments(article);
+        for (const attachment of attachments) {
+            if (!attachment.sURL) continue;
+            try {
+              const filename = this.sanitizeFilename(attachment.sFileName || 'attachment');
+              await this.api.downloadFile(
+                this.buildAttachmentUrl(attachment.sURL),
+                path.join(articleFolderPath, filename)
+              );
+              attachmentCount++;
+            } catch (error) {
+              console.error(`Error downloading wiki attachment for article ${article.ixWikiPage}:`, error);
+            }
+          }
+
+        downloadedArticles++;
+      }
+
+      const status = downloadedArticles > 0 || skippedArticles === 0 ? 'downloaded' : 'skipped';
+      return {
+        wikiId,
+        status,
+        message: `Wiki ${wikiId}: ${downloadedArticles} article(s) downloaded, ${skippedArticles} skipped`,
+        articleCount: downloadedArticles + skippedArticles,
+        attachmentCount,
+      };
+    } catch (error: any) {
+      return {
+        wikiId,
+        status: 'error',
+        message: `Error backing up wiki ${wikiId}: ${error.message}`,
+      };
+    }
+  }
+
+  /** Download all visible wikis. */
+  async downloadWikis(): Promise<WikiDownloadResult[]> {
+    const wikis = await this.api.listWikis();
+    const results: WikiDownloadResult[] = [];
+    for (const wiki of wikis) {
+      results.push(await this.downloadWiki(wiki.ixWiki));
+    }
+    return results;
+  }
+
   /**
    * Build an authenticated attachment download URL
    */
   private buildAttachmentUrl(sURL: string): string {
-    // Unescape HTML entities
-    let url = sURL.replace(/&amp;/g, '&');
-    
-    // Get base URL from the API client
-    const baseUrl = (this.api as any).baseUrl;
-    
-    // If URL is relative, make it absolute
-    if (!url.startsWith('http')) {
-      url = `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+    return this.api.getAuthenticatedFileUrl(sURL);
+  }
+
+  private getWikiAttachments(article: any): Array<{ sFileName?: string; sURL?: string }> {
+    const attachments = Array.isArray(article.attachments) ? article.attachments : [];
+    const knownUrls = new Set(attachments.map((attachment: any) => attachment.sURL).filter(Boolean));
+    const body = typeof article.sBody === 'string' ? article.sBody : '';
+    const embeddedUrls = body.match(/(?:src|href)\s*=\s*["']([^"']*pgWikiAttachment[^"']*)["']/gi) || [];
+
+    for (const match of embeddedUrls) {
+      const urlMatch = match.match(/["']([^"']+)["']$/);
+      const url = urlMatch?.[1];
+      if (url && !knownUrls.has(url)) {
+        knownUrls.add(url);
+        attachments.push({
+          sURL: url,
+          sFileName: decodeURIComponent(url.split('fileName=')[1]?.split('&')[0] || 'attachment'),
+        });
+      }
     }
 
-    // Replace sTicket with token or add token if missing
-    if (url.includes('sTicket=')) {
-      url = url.replace(/sTicket=[^&]*/, `token=${(this.api as any).apiKey}`);
-    } else {
-      const separator = url.includes('?') ? '&' : '?';
-      url = `${url}${separator}token=${(this.api as any).apiKey}`;
-    }
-
-    return url;
+    return attachments;
   }
 
   /**

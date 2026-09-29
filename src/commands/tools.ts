@@ -310,6 +310,95 @@ export const downloadCaseTool: Tool = {
   },
 };
 
+export const listWikisTool: Tool = {
+  name: 'fogbugz_list_wikis',
+  description: 'Lists the FogBugz wikis visible to the current user.',
+  inputSchema: {
+    type: 'object',
+    properties: {},
+    required: [],
+  },
+};
+
+export const listWikiArticlesTool: Tool = {
+  name: 'fogbugz_list_wiki_articles',
+  description: 'Lists the articles in a FogBugz wiki. Article bodies are available through fogbugz_view_wiki_article.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      wikiId: {
+        type: 'number',
+        description: 'The FogBugz wiki ID',
+      },
+    },
+    required: ['wikiId'],
+  },
+};
+
+export const viewWikiArticleTool: Tool = {
+  name: 'fogbugz_view_wiki_article',
+  description: 'Retrieves a FogBugz wiki article, preserving its original FogBugz HTML body and optional attachment metadata.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      articleId: {
+        type: 'number',
+        description: 'The FogBugz wiki article ID (ixWikiPage)',
+      },
+      revision: {
+        type: 'number',
+        description: 'Optional revision number; defaults to the latest revision',
+        optional: true,
+      },
+    },
+    required: ['articleId'],
+  },
+};
+
+export const searchWikiArticlesTool: Tool = {
+  name: 'fogbugz_search_wiki_articles',
+  description: 'Searches FogBugz wiki article headlines, HTML bodies, and tags. This is separate from case search and is bounded by limit.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description: 'Text to find in article headlines, HTML bodies, or tags',
+      },
+      wikiId: {
+        type: 'number',
+        description: 'Optional wiki ID to restrict the search',
+        optional: true,
+      },
+      limit: {
+        type: 'number',
+        description: 'Maximum number of matching articles to return (default: 20)',
+        optional: true,
+      },
+    },
+    required: ['query'],
+  },
+};
+
+export const downloadWikiAttachmentTool: Tool = {
+  name: 'fogbugz_download_wiki_attachment',
+  description: 'Downloads a FogBugz wiki image or other attachment using its sURL to a local path.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      url: {
+        type: 'string',
+        description: 'The attachment sURL returned by FogBugz, usually from a wiki article response',
+      },
+      outputPath: {
+        type: 'string',
+        description: 'Local path where the attachment should be saved',
+      },
+    },
+    required: ['url', 'outputPath'],
+  },
+};
+
 // All tools
 export const fogbugzTools = [
   createCaseTool,
@@ -320,6 +409,11 @@ export const fogbugzTools = [
   getCaseLinkTool,
   createProjectTool,
   downloadCaseTool,
+  listWikisTool,
+  listWikiArticlesTool,
+  viewWikiArticleTool,
+  searchWikiArticlesTool,
+  downloadWikiAttachmentTool,
   {
     name: 'fogbugz_get_case_details',
     description: 'Gets the full content of a FogBugz case, including title, tags, parent/child cases, and all events.',
