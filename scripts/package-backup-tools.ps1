@@ -7,6 +7,10 @@
     Creates a minimal package containing only what's needed to run the backup scripts.
     This can be distributed to colleagues or saved with backups.
 
+    Safe to re-run over an existing package (e.g. the one the scheduled task
+    runs from): it refreshes the scripts and src/ in place and leaves .env,
+    node_modules and anything else it doesn't manage untouched.
+
 .PARAMETER OutputDir
     Where to create the package (default: ./fogbugz-backup-tools)
 #>
@@ -16,30 +20,44 @@ param(
     [string]$OutputDir = "fogbugz-backup-tools"
 )
 
+# Resolve repo paths relative to this script so it works from any directory
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+$ScriptsDir = Join-Path $RepoRoot "scripts"
+
 Write-Host "Creating FogBugz Backup Tools package..." -ForegroundColor Cyan
 
-# Create output directory
 if (Test-Path $OutputDir) {
-    Write-Host "Removing existing package directory..." -ForegroundColor Yellow
-    Remove-Item $OutputDir -Recurse -Force
+    Write-Host "Updating existing package directory (keeping .env and node_modules)..." -ForegroundColor Yellow
+} else {
+    New-Item -ItemType Directory -Path $OutputDir | Out-Null
 }
-New-Item -ItemType Directory -Path $OutputDir | Out-Null
 
 # Copy essential files
 Write-Host "Copying files..." -ForegroundColor Cyan
 
 # Scripts
-Copy-Item "scripts/backup-all.ps1" "$OutputDir/"
-Copy-Item "scripts/backup-changes.ps1" "$OutputDir/"
-Copy-Item "scripts/backup-full.ts" "$OutputDir/"
+foreach ($Script in @(
+    "backup-all.ps1",
+    "backup-changes.ps1",
+    "backup-full.ts",
+    "run-weekly-backup.ps1",
+    "install-scheduled-task.ps1"
+)) {
+    Copy-Item (Join-Path $ScriptsDir $Script) "$OutputDir/" -Force
+}
 
 # Package files
-Copy-Item "package.json" "$OutputDir/"
-Copy-Item "tsconfig.json" "$OutputDir/"
+Copy-Item (Join-Path $RepoRoot "package.json") "$OutputDir/" -Force
+Copy-Item (Join-Path $RepoRoot "tsconfig.json") "$OutputDir/" -Force
 
-# Source code (needed for ts-node)
-New-Item -ItemType Directory -Path "$OutputDir/src" -Force | Out-Null
-Copy-Item -Recurse "src/*" "$OutputDir/src/"
+# Source code (needed for ts-node). Replace src/ wholesale so files deleted
+# from the repo don't linger in the package.
+$PackageSrc = Join-Path $OutputDir "src"
+if (Test-Path $PackageSrc) {
+    Remove-Item $PackageSrc -Recurse -Force
+}
+New-Item -ItemType Directory -Path $PackageSrc -Force | Out-Null
+Copy-Item -Recurse (Join-Path $RepoRoot "src/*") "$PackageSrc/"
 
 # Create .env.example
 @"
@@ -103,7 +121,23 @@ backup-directory/
     ├── metadata.json          # Full case data with events
     ├── 85105_screenshot.png   # Attachments prefixed with event ID
     └── 85106_document.pdf
+└── wikis/
+    └── wiki-1/
+        └── article-34/
+            ├── metadata.json      # Article headline, HTML body, revision, tags
+            └── 7131_image.png     # Attachments prefixed with attachment ID
 ``````
+
+Every run also backs up all wikis; articles whose revision hasn't changed are skipped.
+
+## Weekly Scheduled Backup (Windows)
+
+``````powershell
+.\install-scheduled-task.ps1 -OutputDir "F:\Fogbugz"
+``````
+
+Registers a Task Scheduler job that runs run-weekly-backup.ps1, which calls
+backup-changes.ps1 and appends results to <OutputDir>\backup-log.txt.
 
 **Note:** Modern GitHub/GitLab commits shown in the FogBugz UI are not accessible via the backup API.
 
@@ -177,8 +211,12 @@ Write-Host "Location: $OutputDir" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "  1. cd $OutputDir"
-Write-Host "  2. npm install"
-Write-Host "  3. Copy .env.example to .env and configure"
+Write-Host "  2. npm install   (re-run after updating, in case dependencies changed)"
+if (-not (Test-Path (Join-Path $OutputDir ".env"))) {
+    Write-Host "  3. Copy .env.example to .env and configure"
+} else {
+    Write-Host "  3. .env already present - kept as-is"
+}
 Write-Host "  4. Run .\backup-all.ps1 -OutputDir <path>"
 Write-Host ""
 Write-Host "To distribute, zip the entire folder or copy to a shared location." -ForegroundColor Cyan

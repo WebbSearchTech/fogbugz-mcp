@@ -193,12 +193,14 @@ export class BackupManager {
       let attachmentCount = 0;
 
       for (const articleSummary of articles) {
-        const article = await this.api.viewArticle(articleSummary.ixWikiPage);
+        // viewArticle's wikipage omits ixWikiPage, so take the ID from the listing
+        const ixWikiPage = articleSummary.ixWikiPage;
+        const article = { ...(await this.api.viewArticle(ixWikiPage)), ixWikiPage };
         const articleFolderPath = path.join(
           this.backupDir,
           'wikis',
           `wiki-${wikiId}`,
-          `article-${article.ixWikiPage}`
+          `article-${ixWikiPage}`
         );
         const metadataPath = path.join(articleFolderPath, 'metadata.json');
 
@@ -219,7 +221,10 @@ export class BackupManager {
         for (const attachment of attachments) {
             if (!attachment.sURL) continue;
             try {
-              const filename = this.sanitizeFilename(attachment.sFileName || 'attachment');
+              // Prefix with ixAttachment so same-named files (e.g. image.png) don't collide
+              const ixAttachment = attachment.sURL.match(/ixAttachment=(\d+)/i)?.[1];
+              const baseName = this.sanitizeFilename(attachment.sFileName || 'attachment');
+              const filename = ixAttachment ? `${ixAttachment}_${baseName}` : baseName;
               await this.api.downloadFile(
                 this.buildAttachmentUrl(attachment.sURL),
                 path.join(articleFolderPath, filename)
@@ -280,12 +285,23 @@ export class BackupManager {
         knownUrls.add(url);
         attachments.push({
           sURL: url,
-          sFileName: decodeURIComponent(url.split('fileName=')[1]?.split('&')[0] || 'attachment'),
+          sFileName: this.decodeAttachmentFileName(url),
         });
       }
     }
 
     return attachments;
+  }
+
+  /** Extract the file name from a wiki attachment URL (sFileName= or fileName=). */
+  private decodeAttachmentFileName(url: string): string {
+    const raw = url.replace(/&amp;/g, '&').match(/[?&]s?FileName=([^&#]*)/i)?.[1];
+    if (!raw) return 'attachment';
+    try {
+      return decodeURIComponent(raw.replace(/\+/g, ' ')) || 'attachment';
+    } catch {
+      return raw;
+    }
   }
 
   /**
