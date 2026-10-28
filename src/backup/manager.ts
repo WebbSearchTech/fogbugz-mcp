@@ -161,7 +161,7 @@ export class BackupManager {
                 const downloadUrl = this.buildAttachmentUrl(attachment.sURL);
                 await this.api.downloadFile(downloadUrl, attachmentPath);
               } catch (error) {
-                console.error(`Error downloading attachment for case ${caseId}:`, error);
+                console.error(`Error downloading attachment for case ${caseId}:`, (error as Error).message);
               }
             }
           }
@@ -231,7 +231,7 @@ export class BackupManager {
               );
               attachmentCount++;
             } catch (error) {
-              console.error(`Error downloading wiki attachment for article ${article.ixWikiPage}:`, error);
+              console.error(`Error downloading wiki attachment for article ${article.ixWikiPage}:`, (error as Error).message);
             }
           }
 

@@ -356,7 +356,8 @@ const api = {
         console.error('Axios error in listProjects:', {
           message: error.message,
           code: error.code,
-          config: error.config,
+          // Not error.config: its request body contains the API token.
+          url: error.config?.url,
           response: error.response ? {
             status: error.response.status,
             data: error.response.data,

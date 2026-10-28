@@ -37,7 +37,7 @@ async function startMcpServer(api: FogBugzApi) {
   // Current protocol version we support
   const SERVER_PROTOCOL_VERSION = "2024-11-05";
   const SERVER_NAME = "FogBugz MCP Server";
-  const SERVER_VERSION = "1.2.1";
+  const SERVER_VERSION = "1.2.2";
 
   // Listen for JSON-RPC requests on stdin
   rl.on('line', async (line: string) => {
@@ -262,11 +262,22 @@ async function main() {
     apiKey: fogbugzApiKey
   });
 
+  // Test connection by getting current user. A failure here (often a transient
+  // network/DNS problem) is logged but not fatal: exiting would leave the client
+  // with a dead server, whereas tool calls can succeed once the network is back.
+  // Only the message is logged; the full axios error includes the request body,
+  // which contains the API token.
   try {
-    // Test connection by getting current user
     const user = await api.getCurrentUser();
     log.info(`Connected to FogBugz as ${user.sPerson || user.sFullName} (${user.sEmail})`);
+  } catch (error: any) {
+    log.error(
+      `Could not connect to FogBugz at ${fogbugzUrl} (continuing anyway): ${error.message}. ` +
+      `Tool calls will fail until the server is reachable.`
+    );
+  }
 
+  try {
     // Prefetch the lookup caches. These are conveniences, not requirements:
     // an account without permission to list people or projects would
     // otherwise take down the whole server at startup, so a failure here is
@@ -288,14 +299,14 @@ async function main() {
 
     // Start the MCP server
     await startMcpServer(api);
-  } catch (error) {
-    log.error('Error initializing FogBugz API:', error);
+  } catch (error: any) {
+    log.error('Error starting FogBugz MCP server:', error.message);
     process.exit(1);
   }
 }
 
 // Start the application
 main().catch(error => {
-  log.error('Unhandled error:', error);
+  log.error('Unhandled error:', error.message);
   process.exit(1);
 });
